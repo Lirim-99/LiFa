@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: lifa
+      POSTGRES_PASSWORD: lifa_dev_password
+      POSTGRES_DB: lifa_dev
+    volumes:
+      - lifa_pgdata:/var/lib/postgresql/data
+
+volumes:
+  lifa_pgdata:
