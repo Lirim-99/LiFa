@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { DocumentType, Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { CompanySetupService } from "./company-setup.service";
 import { CreateCompanyDto } from "./dto/create-company.dto";
 import { UpdateCompanyDto } from "./dto/update-company.dto";
 
@@ -21,17 +22,20 @@ export interface CompanyListItem {
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly setup: CompanySetupService,
+  ) {}
 
   /**
    * Creates a company in a single transaction:
    *   1. Insert Company.
    *   2. Insert UserCompanyAccess(owner). is_default=true if user has no other company.
    *   3. Insert DocumentSequence rows for INVOICE + JOURNAL_ENTRY for the current fiscal year.
+   *   4. CompanySetupService.seedDefaults — tax rates, chart of accounts, accounting
+   *      periods, company account defaults.
    *
-   * Reference-data seeding (chart of accounts, tax rates, periods, account defaults)
-   * happens in Step 8 once CompanySetupService exists — this method will be extended
-   * to call it inside the same transaction.
+   * If any step fails the whole company creation rolls back — no half-seeded companies.
    */
   async create(dto: CreateCompanyDto, userId: string) {
     const ownerRole = await this.prisma.role.findUnique({ where: { code: OWNER_ROLE_CODE } });
@@ -42,7 +46,8 @@ export class CompaniesService {
       );
     }
 
-    const fiscalYear = this.currentFiscalYear(dto.fiscalYearStartMonth ?? 1);
+    const startMonth = dto.fiscalYearStartMonth ?? 1;
+    const fiscalYear = this.currentFiscalYear(startMonth);
 
     return this.prisma.$transaction(async (tx) => {
       const existingAccessCount = await tx.userCompanyAccess.count({ where: { userId } });
@@ -61,7 +66,7 @@ export class CompaniesService {
           phone: dto.phone,
           website: dto.website,
           defaultCurrency: dto.defaultCurrency ?? "EUR",
-          fiscalYearStartMonth: dto.fiscalYearStartMonth ?? 1,
+          fiscalYearStartMonth: startMonth,
           createdBy: userId,
         },
       });
@@ -85,6 +90,13 @@ export class CompaniesService {
             prefix: `JE-${fiscalYear}-`,
           },
         ],
+      });
+
+      await this.setup.seedDefaults(tx, {
+        companyId: company.id,
+        createdBy: userId,
+        fiscalYearStartMonth: startMonth,
+        fiscalYear,
       });
 
       return company;
