@@ -10,6 +10,7 @@ import {
   Post,
 } from "@nestjs/common";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequirePermission } from "../permissions/decorators/require-permission.decorator";
 import { CompaniesService } from "./companies.service";
 import { CreateCompanyDto } from "./dto/create-company.dto";
 import { UpdateCompanyDto } from "./dto/update-company.dto";
@@ -35,6 +36,7 @@ export class CompaniesController {
   }
 
   @Patch(":id")
+  @RequirePermission("company.update", { companyIdParam: "id" })
   update(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateCompanyDto,
