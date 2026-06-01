@@ -4,6 +4,7 @@ import { AppController } from "./app.controller";
 import { CommonModule } from "./common";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
+import { ContactsModule } from "./modules/contacts/contacts.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -17,6 +18,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     UsersModule,
     PermissionsModule,
     CompaniesModule,
+    ContactsModule,
   ],
   controllers: [AppController],
 })
