@@ -15,7 +15,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          You're signed in. The rest of the UI lands across the next frontend steps.
+          You&apos;re signed in. The rest of the UI lands across the next frontend steps.
         </p>
       </div>
 

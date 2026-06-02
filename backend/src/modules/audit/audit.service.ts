@@ -63,13 +63,9 @@ export class AuditService {
           entityId: params.entityId,
           action: params.action,
           beforeJson:
-            params.before === undefined
-              ? Prisma.JsonNull
-              : (params.before as Prisma.InputJsonValue | null),
+            params.before == null ? Prisma.JsonNull : (params.before as Prisma.InputJsonValue),
           afterJson:
-            params.after === undefined
-              ? Prisma.JsonNull
-              : (params.after as Prisma.InputJsonValue | null),
+            params.after == null ? Prisma.JsonNull : (params.after as Prisma.InputJsonValue),
           ipAddress: params.ipAddress,
         },
       });

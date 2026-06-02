@@ -337,8 +337,10 @@ export class InvoicesService {
       await tx.journalEntryLine.createMany({ data: journalLines });
 
       // 8. Balance check. If this fires, we have a calculation bug.
-      const debits = DecimalUtil.sum(journalLines.map((l) => l.debitAmount ?? 0));
-      const credits = DecimalUtil.sum(journalLines.map((l) => l.creditAmount ?? 0));
+      // `createMany` accepts DecimalJsLike too, which DecimalUtil doesn't know
+      // about — stringify so every numeric variant flows through cleanly.
+      const debits = DecimalUtil.sum(journalLines.map((l) => String(l.debitAmount ?? 0)));
+      const credits = DecimalUtil.sum(journalLines.map((l) => String(l.creditAmount ?? 0)));
       if (!DecimalUtil.isEqual(debits, credits)) {
         throw new InternalServerErrorException(
           `Journal entry unbalanced (debits=${DecimalUtil.toString(debits)}, credits=${DecimalUtil.toString(credits)}) — invoice issue aborted`,
