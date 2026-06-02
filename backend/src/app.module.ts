@@ -8,6 +8,7 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
 import { ContactsModule } from "./modules/contacts/contacts.module";
+import { PaymentsModule } from "./modules/payments/payments.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { TaxModule } from "./modules/tax/tax.module";
@@ -29,6 +30,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     AccountingModule,
     CatalogModule,
     SalesModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
 })
