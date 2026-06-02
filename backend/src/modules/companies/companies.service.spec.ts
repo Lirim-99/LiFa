@@ -101,11 +101,12 @@ function makeFakePrisma(opts: { ownerRoleExists?: boolean } = {}) {
 
 function makeService(opts: Parameters<typeof makeFakePrisma>[0] = {}) {
   const fake = makeFakePrisma(opts);
-  // Step 8 added CompanySetupService — stub it out for these unit tests; its
-  // own correctness is verified in company-setup.service.spec.ts.
+  // CompanySetupService stubbed — verified in company-setup.service.spec.ts.
+  // AuditService stubbed — verified in audit.service.spec.ts.
   const setup = { seedDefaults: jest.fn().mockResolvedValue(undefined) };
-  const service = new CompaniesService(fake.prisma as never, setup as never);
-  return { service, setup, ...fake };
+  const audit = { log: jest.fn().mockResolvedValue(undefined) };
+  const service = new CompaniesService(fake.prisma as never, setup as never, audit as never);
+  return { service, setup, audit, ...fake };
 }
 
 describe("CompaniesService", () => {

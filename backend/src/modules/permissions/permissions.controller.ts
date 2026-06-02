@@ -29,8 +29,12 @@ export class PermissionsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @RequirePermission("permissions.manage", { companyIdParam: "companyId" })
-  add(@Param("companyId", ParseUUIDPipe) companyId: string, @Body() dto: AddUserAccessDto) {
-    return this.permissions.addUser(companyId, dto);
+  add(
+    @Param("companyId", ParseUUIDPipe) companyId: string,
+    @Body() dto: AddUserAccessDto,
+    @CurrentUser("userId") actingUserId: string,
+  ) {
+    return this.permissions.addUser(companyId, dto, actingUserId);
   }
 
   @Patch(":userId")
@@ -39,8 +43,9 @@ export class PermissionsController {
     @Param("companyId", ParseUUIDPipe) companyId: string,
     @Param("userId", ParseUUIDPipe) userId: string,
     @Body() dto: UpdateUserAccessDto,
+    @CurrentUser("userId") actingUserId: string,
   ) {
-    return this.permissions.updateUserRole(companyId, userId, dto);
+    return this.permissions.updateUserRole(companyId, userId, dto, actingUserId);
   }
 
   @Delete(":userId")

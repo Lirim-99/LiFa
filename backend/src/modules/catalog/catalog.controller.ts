@@ -9,63 +9,63 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { CurrentCompany } from "../../common/decorators/current-company.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { CompanyGuard } from "../auth/guards/company.guard";
 import { RequirePermission } from "../permissions/decorators/require-permission.decorator";
-import { AccountsService } from "./accounts.service";
-import { CreateAccountDto } from "./dto/create-account.dto";
-import { UpdateAccountDto } from "./dto/update-account.dto";
+import { CatalogService } from "./catalog.service";
+import { CreateProductServiceDto } from "./dto/create-product-service.dto";
+import { ProductServiceFilterDto } from "./dto/product-service-filter.dto";
+import { UpdateProductServiceDto } from "./dto/update-product-service.dto";
 
-@Controller("accounts")
+@Controller("products-services")
 @UseGuards(CompanyGuard)
-export class AccountsController {
-  constructor(private readonly accounts: AccountsService) {}
+export class CatalogController {
+  constructor(private readonly catalog: CatalogService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermission("accounting.create")
+  @RequirePermission("catalog.create")
   create(
     @CurrentCompany("companyId") companyId: string,
     @CurrentUser("userId") userId: string,
-    @Body() dto: CreateAccountDto,
+    @Body() dto: CreateProductServiceDto,
   ) {
-    return this.accounts.create(companyId, dto, userId);
+    return this.catalog.create(companyId, dto, userId);
   }
 
   @Get()
-  @RequirePermission("accounting.read")
-  list(@CurrentCompany("companyId") companyId: string) {
-    return this.accounts.findAll(companyId);
+  @RequirePermission("catalog.read")
+  list(@CurrentCompany("companyId") companyId: string, @Query() filters: ProductServiceFilterDto) {
+    return this.catalog.findAll(companyId, filters);
   }
 
   @Get(":id")
-  @RequirePermission("accounting.read")
+  @RequirePermission("catalog.read")
   findOne(@CurrentCompany("companyId") companyId: string, @Param("id", ParseUUIDPipe) id: string) {
-    return this.accounts.findById(companyId, id);
+    return this.catalog.findById(companyId, id);
   }
 
   @Patch(":id")
-  @RequirePermission("accounting.update")
+  @RequirePermission("catalog.update")
   update(
     @CurrentCompany("companyId") companyId: string,
     @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: UpdateAccountDto,
-    @CurrentUser("userId") userId: string,
+    @Body() dto: UpdateProductServiceDto,
   ) {
-    return this.accounts.update(companyId, id, dto, userId);
+    return this.catalog.update(companyId, id, dto);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermission("accounting.delete")
+  @RequirePermission("catalog.delete")
   async deactivate(
     @CurrentCompany("companyId") companyId: string,
     @Param("id", ParseUUIDPipe) id: string,
-    @CurrentUser("userId") userId: string,
   ): Promise<void> {
-    await this.accounts.deactivate(companyId, id, userId);
+    await this.catalog.deactivate(companyId, id);
   }
 }

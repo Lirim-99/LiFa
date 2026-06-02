@@ -170,7 +170,8 @@ function makePrisma() {
 
 function makeService() {
   const fake = makePrisma();
-  const service = new PermissionsService(fake.prisma as never);
+  const audit = { log: jest.fn().mockResolvedValue(undefined) };
+  const service = new PermissionsService(fake.prisma as never, audit as never);
   return { service, ...fake };
 }
 

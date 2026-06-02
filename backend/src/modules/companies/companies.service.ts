@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { DocumentType, Prisma } from "@prisma/client";
+import { AuditAction, AuditEntityType, AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CompanySetupService } from "./company-setup.service";
 import { CreateCompanyDto } from "./dto/create-company.dto";
@@ -25,22 +26,12 @@ export class CompaniesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly setup: CompanySetupService,
+    private readonly audit: AuditService,
   ) {}
 
-  /**
-   * Creates a company in a single transaction:
-   *   1. Insert Company.
-   *   2. Insert UserCompanyAccess(owner). is_default=true if user has no other company.
-   *   3. Insert DocumentSequence rows for INVOICE + JOURNAL_ENTRY for the current fiscal year.
-   *   4. CompanySetupService.seedDefaults — tax rates, chart of accounts, accounting
-   *      periods, company account defaults.
-   *
-   * If any step fails the whole company creation rolls back — no half-seeded companies.
-   */
   async create(dto: CreateCompanyDto, userId: string) {
     const ownerRole = await this.prisma.role.findUnique({ where: { code: OWNER_ROLE_CODE } });
     if (!ownerRole) {
-      // Seed data missing — fail loudly so we don't silently grant a user an undefined role.
       throw new InternalServerErrorException(
         `Role '${OWNER_ROLE_CODE}' not found. Run \`pnpm db:seed\`.`,
       );
@@ -99,11 +90,22 @@ export class CompaniesService {
         fiscalYear,
       });
 
+      await this.audit.log(
+        {
+          companyId: company.id,
+          userId,
+          entityType: AuditEntityType.COMPANY,
+          entityId: company.id,
+          action: AuditAction.CREATED,
+          after: { legalName: company.legalName, legalForm: company.legalForm },
+        },
+        tx,
+      );
+
       return company;
     });
   }
 
-  /** Returns the companies the user can access, with role + default flag. */
   async findByUser(userId: string): Promise<CompanyListItem[]> {
     const rows = await this.prisma.userCompanyAccess.findMany({
       where: { userId },
@@ -122,7 +124,6 @@ export class CompaniesService {
     }));
   }
 
-  /** Loads a company the user has access to. Returns 404 on no access or missing record. */
   async findById(companyId: string, userId: string) {
     await this.assertAccess(companyId, userId);
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
@@ -132,16 +133,23 @@ export class CompaniesService {
 
   async update(companyId: string, dto: UpdateCompanyDto, userId: string) {
     await this.assertAccess(companyId, userId);
-    return this.prisma.company.update({
+    const before = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const updated = await this.prisma.company.update({
       where: { id: companyId },
       data: dto as Prisma.CompanyUpdateInput,
     });
+    await this.audit.log({
+      companyId,
+      userId,
+      entityType: AuditEntityType.COMPANY,
+      entityId: companyId,
+      action: AuditAction.UPDATED,
+      before: diffSummary(before as Record<string, unknown> | null, dto as Record<string, unknown>),
+      after: dto as Record<string, unknown>,
+    });
+    return updated;
   }
 
-  /**
-   * Throws NotFoundException if the user has no UserCompanyAccess for `companyId`.
-   * Using 404 (not 403) deliberately — we don't leak existence across companies.
-   */
   async assertAccess(companyId: string, userId: string): Promise<void> {
     const access = await this.prisma.userCompanyAccess.findUnique({
       where: { userId_companyId: { userId, companyId } },
@@ -149,10 +157,6 @@ export class CompaniesService {
     if (!access) throw new NotFoundException("Company not found");
   }
 
-  /**
-   * Stricter variant: requires a specific role. Step 6 introduces a full
-   * permission matrix; for Step 5 this just guards owner/admin-only actions.
-   */
   async assertRole(companyId: string, userId: string, allowed: string[]): Promise<void> {
     const access = await this.prisma.userCompanyAccess.findUnique({
       where: { userId_companyId: { userId, companyId } },
@@ -164,15 +168,20 @@ export class CompaniesService {
     }
   }
 
-  /**
-   * Maps a calendar date to the company's fiscal year, given its start month.
-   *   start month = 1 (January)   → fiscal year = calendar year
-   *   start month = 7, date = Mar → fiscal year = previous calendar year
-   *   start month = 7, date = Aug → fiscal year = current calendar year
-   */
   private currentFiscalYear(startMonth: number, today: Date = new Date()): number {
-    const month = today.getMonth() + 1; // 1-12
+    const month = today.getMonth() + 1;
     const year = today.getFullYear();
     return month >= startMonth ? year : year - 1;
   }
+}
+
+/** Picks only the keys touched by a PATCH from the previous record. */
+function diffSummary(
+  before: Record<string, unknown> | null,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!before) return {};
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(patch)) out[k] = before[k];
+  return out;
 }

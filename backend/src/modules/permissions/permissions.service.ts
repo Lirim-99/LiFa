@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditAction, AuditEntityType, AuditService } from "../audit/audit.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AddUserAccessDto } from "./dto/add-user-access.dto";
 import { UpdateUserAccessDto } from "./dto/update-user-access.dto";
@@ -20,9 +21,11 @@ export interface CompanyUserListItem {
 
 @Injectable()
 export class PermissionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
-  /** Pure check against the in-memory matrix. */
   hasPermission(roleCode: string, permission: string): boolean {
     return roleHasPermission(roleCode, permission);
   }
@@ -54,7 +57,7 @@ export class PermissionsService {
     }));
   }
 
-  async addUser(companyId: string, dto: AddUserAccessDto) {
+  async addUser(companyId: string, dto: AddUserAccessDto, actingUserId: string) {
     const [user, role] = await Promise.all([
       this.prisma.user.findUnique({ where: { email: dto.email } }),
       this.prisma.role.findUnique({ where: { code: dto.roleCode } }),
@@ -69,24 +72,49 @@ export class PermissionsService {
       throw new BadRequestException("User already has access to this company");
     }
 
-    return this.prisma.userCompanyAccess.create({
+    const access = await this.prisma.userCompanyAccess.create({
       data: { userId: user.id, companyId, roleId: role.id, isDefault: false },
     });
+    await this.audit.log({
+      companyId,
+      userId: actingUserId,
+      entityType: AuditEntityType.USER_ACCESS,
+      entityId: user.id,
+      action: AuditAction.ACCESS_GRANTED,
+      after: { email: dto.email, roleCode: dto.roleCode },
+    });
+    return access;
   }
 
-  async updateUserRole(companyId: string, targetUserId: string, dto: UpdateUserAccessDto) {
+  async updateUserRole(
+    companyId: string,
+    targetUserId: string,
+    dto: UpdateUserAccessDto,
+    actingUserId: string,
+  ) {
     const role = await this.prisma.role.findUnique({ where: { code: dto.roleCode } });
     if (!role) throw new BadRequestException(`Unknown role: ${dto.roleCode}`);
 
     const access = await this.prisma.userCompanyAccess.findUnique({
       where: { userId_companyId: { userId: targetUserId, companyId } },
+      include: { role: { select: { code: true } } },
     });
     if (!access) throw new NotFoundException("User does not have access to this company");
 
-    return this.prisma.userCompanyAccess.update({
+    const updated = await this.prisma.userCompanyAccess.update({
       where: { userId_companyId: { userId: targetUserId, companyId } },
       data: { roleId: role.id },
     });
+    await this.audit.log({
+      companyId,
+      userId: actingUserId,
+      entityType: AuditEntityType.USER_ACCESS,
+      entityId: targetUserId,
+      action: AuditAction.ROLE_CHANGED,
+      before: { roleCode: access.role.code },
+      after: { roleCode: dto.roleCode },
+    });
+    return updated;
   }
 
   /**
@@ -115,6 +143,14 @@ export class PermissionsService {
 
     await this.prisma.userCompanyAccess.delete({
       where: { userId_companyId: { userId: targetUserId, companyId } },
+    });
+    await this.audit.log({
+      companyId,
+      userId: actingUserId,
+      entityType: AuditEntityType.USER_ACCESS,
+      entityId: targetUserId,
+      action: AuditAction.ACCESS_REVOKED,
+      before: { roleCode: target.role.code },
     });
   }
 }
