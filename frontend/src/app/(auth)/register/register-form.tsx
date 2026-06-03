@@ -116,7 +116,10 @@ export function RegisterForm() {
           </Button>
           <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
             Already have one?{" "}
-            <Link href="/login" className="font-medium text-zinc-900 hover:underline dark:text-zinc-100">
+            <Link
+              href="/login"
+              className="font-medium text-zinc-900 hover:underline dark:text-zinc-100"
+            >
               Sign in
             </Link>
           </p>

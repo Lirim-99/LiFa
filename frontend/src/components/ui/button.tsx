@@ -20,8 +20,7 @@ const variants: Record<Variant, string> = {
     "border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50 focus-visible:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800",
   ghost:
     "text-zinc-700 hover:bg-zinc-100 focus-visible:ring-zinc-400 dark:text-zinc-300 dark:hover:bg-zinc-800",
-  danger:
-    "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600",
+  danger: "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600",
 };
 
 const sizes: Record<Size, string> = {
@@ -31,7 +30,16 @@ const sizes: Record<Size, string> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant = "primary", size = "md", loading, children, disabled, type = "button", ...rest },
+  {
+    className,
+    variant = "primary",
+    size = "md",
+    loading,
+    children,
+    disabled,
+    type = "button",
+    ...rest
+  },
   ref,
 ) {
   return (
@@ -50,12 +58,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 function Spinner() {
   return (
-    <svg
-      className="h-4 w-4 animate-spin"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-    >
+    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" />
       <path
         d="M22 12a10 10 0 01-10 10"

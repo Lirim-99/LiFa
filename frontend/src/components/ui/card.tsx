@@ -14,13 +14,16 @@ export function Card({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
 }
 
 export function CardHeader({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-6 py-4 border-b border-zinc-200 dark:border-zinc-800", className)} {...rest} />;
+  return (
+    <div
+      className={cn("px-6 py-4 border-b border-zinc-200 dark:border-zinc-800", className)}
+      {...rest}
+    />
+  );
 }
 
 export function CardTitle({ className, ...rest }: HTMLAttributes<HTMLHeadingElement>) {
-  return (
-    <h2 className={cn("text-lg font-semibold tracking-tight", className)} {...rest} />
-  );
+  return <h2 className={cn("text-lg font-semibold tracking-tight", className)} {...rest} />;
 }
 
 export function CardDescription({ className, ...rest }: HTMLAttributes<HTMLParagraphElement>) {
@@ -32,5 +35,10 @@ export function CardContent({ className, ...rest }: HTMLAttributes<HTMLDivElemen
 }
 
 export function CardFooter({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-6 py-4 border-t border-zinc-200 dark:border-zinc-800", className)} {...rest} />;
+  return (
+    <div
+      className={cn("px-6 py-4 border-t border-zinc-200 dark:border-zinc-800", className)}
+      {...rest}
+    />
+  );
 }
