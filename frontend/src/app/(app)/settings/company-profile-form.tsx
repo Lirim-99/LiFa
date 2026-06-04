@@ -72,6 +72,7 @@ export function CompanyProfileForm({ companyId }: { companyId: string }) {
     );
     try {
       await update.mutateAsync(payload as never);
+      // eslint-disable-next-line react-hooks/purity -- runs in event handler, not render
       setSavedAt(Date.now());
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to save");

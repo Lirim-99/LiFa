@@ -69,17 +69,22 @@ export function InvoiceEditor({
 
   const isDraft = !existing || existing.status === "DRAFT";
 
-  const { register, handleSubmit, control, reset, formState: { errors, isSubmitting } } =
-    useForm<Values>({
-      resolver: zodResolver(Schema),
-      defaultValues: {
-        contactId: "",
-        issueDate: today(),
-        dueDate: today(30),
-        notes: "",
-        lines: [emptyLine()],
-      },
-    });
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<Values>({
+    resolver: zodResolver(Schema),
+    defaultValues: {
+      contactId: "",
+      issueDate: today(),
+      dueDate: today(30),
+      notes: "",
+      lines: [emptyLine()],
+    },
+  });
   const { fields, append, remove } = useFieldArray({ control, name: "lines" });
 
   useEffect(() => {
@@ -191,7 +196,10 @@ export function InvoiceEditor({
               </thead>
               <tbody>
                 {fields.map((field, idx) => (
-                  <tr key={field.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr
+                    key={field.id}
+                    className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
+                  >
                     <td className="py-2 pr-2">
                       <Select disabled={!isDraft} {...register(`lines.${idx}.productServiceId`)}>
                         <option value="">—</option>
@@ -227,7 +235,11 @@ export function InvoiceEditor({
                     </td>
                     <td className="py-2 pr-2 w-44">
                       <div className="flex gap-1">
-                        <Select disabled={!isDraft} className="w-20" {...register(`lines.${idx}.discountType`)}>
+                        <Select
+                          disabled={!isDraft}
+                          className="w-20"
+                          {...register(`lines.${idx}.discountType`)}
+                        >
                           <option value="">—</option>
                           {DISCOUNT_TYPES.map((d) => (
                             <option key={d.value} value={d.value}>
@@ -331,14 +343,20 @@ export function InvoiceEditor({
             </Button>
             {isDraft ? (
               <>
-                <Button type="submit" loading={isSubmitting || create.isPending || update.isPending}>
+                <Button
+                  type="submit"
+                  loading={isSubmitting || create.isPending || update.isPending}
+                >
                   {existing ? "Save" : "Create draft"}
                 </Button>
                 {existing ? (
                   <Button
                     type="button"
                     onClick={async () => {
-                      if (!confirm("Issue this invoice? Posts a journal entry and assigns a number.")) return;
+                      if (
+                        !confirm("Issue this invoice? Posts a journal entry and assigns a number.")
+                      )
+                        return;
                       setSubmitError(null);
                       try {
                         await issue.mutateAsync(existing.id);

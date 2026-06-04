@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useJournalEntries } from "@/lib/queries/journal-entries";
@@ -133,10 +132,20 @@ export function JournalEntriesClient() {
             Page {data.page} of {data.totalPages} · {data.total} total
           </span>
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
               Previous
             </Button>
-            <Button size="sm" variant="secondary" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page >= data.totalPages}
+              onClick={() => setPage(page + 1)}
+            >
               Next
             </Button>
           </div>
@@ -150,7 +159,9 @@ function Row({ entry, onOpen }: { entry: JournalEntry; onOpen: () => void }) {
   const reversed = !!entry.reversedByEntryId;
   return (
     <tr className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
-      <Td className="font-mono text-xs">{entry.entryNumber ?? <span className="text-zinc-400">draft</span>}</Td>
+      <Td className="font-mono text-xs">
+        {entry.entryNumber ?? <span className="text-zinc-400">draft</span>}
+      </Td>
       <Td>{entry.entryDate.slice(0, 10)}</Td>
       <Td>
         <Badge variant="outline">{entry.sourceDocumentType ?? "MANUAL"}</Badge>
@@ -175,7 +186,9 @@ function Row({ entry, onOpen }: { entry: JournalEntry; onOpen: () => void }) {
 
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}>
+    <th
+      className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}
+    >
       {children}
     </th>
   );

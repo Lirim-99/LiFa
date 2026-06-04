@@ -90,8 +90,7 @@ export function useUpdateInvoice(id: string) {
 export function useIssueInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<Invoice>(`/invoices/${id}/issue`, { method: "POST" }),
+    mutationFn: (id: string) => apiFetch<Invoice>(`/invoices/${id}/issue`, { method: "POST" }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: invoiceKeys.all }),
   });
 }
@@ -99,8 +98,7 @@ export function useIssueInvoice() {
 export function useVoidInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<Invoice>(`/invoices/${id}/void`, { method: "POST" }),
+    mutationFn: (id: string) => apiFetch<Invoice>(`/invoices/${id}/void`, { method: "POST" }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: invoiceKeys.all }),
   });
 }

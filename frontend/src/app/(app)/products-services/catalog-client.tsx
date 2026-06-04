@@ -20,11 +20,7 @@ import {
   useUpdateProductService,
 } from "@/lib/queries/catalog";
 import { useTaxRates } from "@/lib/queries/tax";
-import {
-  PRODUCT_SERVICE_TYPES,
-  type ProductService,
-  type ProductServiceType,
-} from "@/lib/types";
+import { PRODUCT_SERVICE_TYPES, type ProductService, type ProductServiceType } from "@/lib/types";
 
 const TYPE_VALUES = PRODUCT_SERVICE_TYPES.map((t) => t.value) as [
   ProductServiceType,
@@ -117,10 +113,7 @@ export function CatalogClient() {
       </Card>
 
       {showNew ? (
-        <ItemForm
-          onDone={() => setShowNew(false)}
-          onCancel={() => setShowNew(false)}
-        />
+        <ItemForm onDone={() => setShowNew(false)} onCancel={() => setShowNew(false)} />
       ) : null}
 
       <Card>
@@ -170,12 +163,12 @@ export function CatalogClient() {
                         {!p.isActive ? <Badge variant="warning">Inactive</Badge> : null}
                       </Td>
                       <Td>
-                        <Badge variant={p.type === "PRODUCT" ? "default" : "outline"}>{p.type}</Badge>
+                        <Badge variant={p.type === "PRODUCT" ? "default" : "outline"}>
+                          {p.type}
+                        </Badge>
                       </Td>
                       <Td className="font-mono text-xs">{p.sku ?? "—"}</Td>
-                      <Td className="text-right">
-                        {p.salePrice ? `${p.salePrice}` : "—"}
-                      </Td>
+                      <Td className="text-right">{p.salePrice ? `${p.salePrice}` : "—"}</Td>
                       <Td className="text-right">
                         <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>
                           Edit
@@ -196,10 +189,20 @@ export function CatalogClient() {
             Page {data.page} of {data.totalPages} · {data.total} total
           </span>
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
               Previous
             </Button>
-            <Button size="sm" variant="secondary" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page >= data.totalPages}
+              onClick={() => setPage(page + 1)}
+            >
               Next
             </Button>
           </div>
@@ -211,7 +214,9 @@ export function CatalogClient() {
 
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}>
+    <th
+      className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}
+    >
       {children}
     </th>
   );
@@ -308,7 +313,9 @@ function ItemForm({
                 type="number"
                 step="0.0001"
                 min={0}
-                {...register("salePrice", { setValueAs: (v) => (v === "" ? undefined : Number(v)) })}
+                {...register("salePrice", {
+                  setValueAs: (v) => (v === "" ? undefined : Number(v)),
+                })}
               />
             </div>
             <div>
@@ -318,7 +325,9 @@ function ItemForm({
                 type="number"
                 step="0.0001"
                 min={0}
-                {...register("purchasePrice", { setValueAs: (v) => (v === "" ? undefined : Number(v)) })}
+                {...register("purchasePrice", {
+                  setValueAs: (v) => (v === "" ? undefined : Number(v)),
+                })}
               />
             </div>
             <div>

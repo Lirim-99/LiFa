@@ -44,7 +44,6 @@ export function PaymentForm({ onDone, onCancel }: { onDone: () => void; onCancel
     register,
     handleSubmit,
     control,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
     resolver: zodResolver(Schema),
@@ -175,9 +174,7 @@ export function PaymentForm({ onDone, onCancel }: { onDone: () => void; onCancel
                 ) : null}
               </div>
               {openInvoices.length === 0 ? (
-                <p className="text-sm text-zinc-500">
-                  No outstanding invoices for this customer.
-                </p>
+                <p className="text-sm text-zinc-500">No outstanding invoices for this customer.</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="border-b border-zinc-200 dark:border-zinc-800">
@@ -200,9 +197,7 @@ export function PaymentForm({ onDone, onCancel }: { onDone: () => void; onCancel
                           key={field.id}
                           className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
                         >
-                          <td className="py-2 font-mono text-xs">
-                            {inv.invoiceNumber ?? "draft"}
-                          </td>
+                          <td className="py-2 font-mono text-xs">{inv.invoiceNumber ?? "draft"}</td>
                           <td className="py-2 text-right font-mono">
                             {Number(inv.totalAmount).toFixed(2)}
                           </td>
@@ -239,7 +234,9 @@ export function PaymentForm({ onDone, onCancel }: { onDone: () => void; onCancel
               )}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {openInvoices
-                  .filter((inv) => !fields.some((f) => (f as { invoiceId: string }).invoiceId === inv.id))
+                  .filter(
+                    (inv) => !fields.some((f) => (f as { invoiceId: string }).invoiceId === inv.id),
+                  )
                   .map((inv) => (
                     <Button
                       key={inv.id}

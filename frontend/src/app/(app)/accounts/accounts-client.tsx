@@ -25,10 +25,7 @@ import {
   type NormalBalance,
 } from "@/lib/types";
 
-const ACCOUNT_TYPE_VALUES = ACCOUNT_TYPES.map((t) => t.value) as [
-  AccountType,
-  ...AccountType[],
-];
+const ACCOUNT_TYPE_VALUES = ACCOUNT_TYPES.map((t) => t.value) as [AccountType, ...AccountType[]];
 const NORMAL_BALANCE_VALUES = NORMAL_BALANCES.map((t) => t.value) as [
   NormalBalance,
   ...NormalBalance[],
@@ -51,9 +48,7 @@ export function AccountsClient() {
   const [editing, setEditing] = useState<Account | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | AccountType>("all");
 
-  const filtered = (data ?? []).filter(
-    (a) => typeFilter === "all" || a.accountType === typeFilter,
-  );
+  const filtered = (data ?? []).filter((a) => typeFilter === "all" || a.accountType === typeFilter);
 
   return (
     <div className="space-y-4">
@@ -169,7 +164,9 @@ export function AccountsClient() {
 
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}>
+    <th
+      className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}
+    >
       {children}
     </th>
   );
@@ -281,7 +278,12 @@ function AccountForm({
               </Select>
             </div>
             <div className="flex items-end gap-2">
-              <input id="isPostable" type="checkbox" className="h-4 w-4" {...register("isPostable")} />
+              <input
+                id="isPostable"
+                type="checkbox"
+                className="h-4 w-4"
+                {...register("isPostable")}
+              />
               <Label htmlFor="isPostable">Postable (uncheck for roll-up)</Label>
             </div>
           </div>

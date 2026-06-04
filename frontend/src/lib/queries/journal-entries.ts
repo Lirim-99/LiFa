@@ -32,8 +32,7 @@ function qs(params: JournalEntryListParams) {
 export function useJournalEntries(params: JournalEntryListParams) {
   return useQuery({
     queryKey: jeKeys.list(params),
-    queryFn: () =>
-      apiFetch<PaginatedResponse<JournalEntry>>(`/journal-entries${qs(params)}`),
+    queryFn: () => apiFetch<PaginatedResponse<JournalEntry>>(`/journal-entries${qs(params)}`),
   });
 }
 
@@ -107,8 +106,7 @@ export function useVoidJournalEntry() {
 export function useDeleteJournalEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<void>(`/journal-entries/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => apiFetch<void>(`/journal-entries/${id}`, { method: "DELETE" }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: jeKeys.all }),
   });
 }

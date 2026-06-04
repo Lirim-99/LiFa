@@ -4,14 +4,16 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useInvoices } from "@/lib/queries/invoices";
 import { INVOICE_STATUSES, type Invoice, type InvoiceStatus } from "@/lib/types";
 import { InvoiceEditor } from "./invoice-editor";
 
-const STATUS_VARIANT: Record<InvoiceStatus, "default" | "success" | "warning" | "outline" | "danger"> = {
+const STATUS_VARIANT: Record<
+  InvoiceStatus,
+  "default" | "success" | "warning" | "outline" | "danger"
+> = {
   DRAFT: "warning",
   ISSUED: "default",
   PARTIALLY_PAID: "outline",
@@ -110,7 +112,9 @@ export function InvoicesClient() {
                   </td>
                 </tr>
               ) : (
-                data.data.map((inv) => <Row key={inv.id} inv={inv} onOpen={() => setEditingId(inv.id)} />)
+                data.data.map((inv) => (
+                  <Row key={inv.id} inv={inv} onOpen={() => setEditingId(inv.id)} />
+                ))
               )}
             </tbody>
           </table>
@@ -123,10 +127,20 @@ export function InvoicesClient() {
             Page {data.page} of {data.totalPages} · {data.total} total
           </span>
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
               Previous
             </Button>
-            <Button size="sm" variant="secondary" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page >= data.totalPages}
+              onClick={() => setPage(page + 1)}
+            >
               Next
             </Button>
           </div>
@@ -139,7 +153,9 @@ export function InvoicesClient() {
 function Row({ inv, onOpen }: { inv: Invoice; onOpen: () => void }) {
   return (
     <tr className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
-      <Td className="font-mono text-xs">{inv.invoiceNumber ?? <span className="text-zinc-400">draft</span>}</Td>
+      <Td className="font-mono text-xs">
+        {inv.invoiceNumber ?? <span className="text-zinc-400">draft</span>}
+      </Td>
       <Td>{inv.issueDate.slice(0, 10)}</Td>
       <Td>{inv.contact?.displayName ?? <span className="text-zinc-400">—</span>}</Td>
       <Td className="text-right font-mono text-xs">{Number(inv.totalAmount).toFixed(2)}</Td>
@@ -158,7 +174,9 @@ function Row({ inv, onOpen }: { inv: Invoice; onOpen: () => void }) {
 
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}>
+    <th
+      className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}
+    >
       {children}
     </th>
   );

@@ -10,6 +10,7 @@ import { CompaniesModule } from "./modules/companies/companies.module";
 import { ContactsModule } from "./modules/contacts/contacts.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
+import { ReportsModule } from "./modules/reports/reports.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { TaxModule } from "./modules/tax/tax.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -31,6 +32,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     CatalogModule,
     SalesModule,
     PaymentsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
 })

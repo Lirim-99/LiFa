@@ -12,11 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  useContacts,
-  useCreateContact,
-  useUpdateContact,
-} from "@/lib/queries/contacts";
+import { useContacts, useCreateContact, useUpdateContact } from "@/lib/queries/contacts";
 import type { Contact } from "@/lib/types";
 
 const ContactSchema = z
@@ -118,10 +114,7 @@ export function ContactsClient() {
       </Card>
 
       {showNew ? (
-        <ContactForm
-          onDone={() => setShowNew(false)}
-          onCancel={() => setShowNew(false)}
-        />
+        <ContactForm onDone={() => setShowNew(false)} onCancel={() => setShowNew(false)} />
       ) : null}
 
       <Card>
@@ -209,7 +202,9 @@ export function ContactsClient() {
 
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}>
+    <th
+      className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}
+    >
       {children}
     </th>
   );
@@ -235,10 +230,20 @@ function Pagination({
         Page {page} of {totalPages} · {total} total
       </span>
       <div className="flex gap-2">
-        <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={page <= 1}
+          onClick={() => onChange(page - 1)}
+        >
           Previous
         </Button>
-        <Button size="sm" variant="secondary" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={page >= totalPages}
+          onClick={() => onChange(page + 1)}
+        >
           Next
         </Button>
       </div>
@@ -344,7 +349,9 @@ function ContactForm({
                 id="paymentTermsDays"
                 type="number"
                 min={0}
-                {...register("paymentTermsDays", { setValueAs: (v) => (v === "" ? undefined : Number(v)) })}
+                {...register("paymentTermsDays", {
+                  setValueAs: (v) => (v === "" ? undefined : Number(v)),
+                })}
               />
             </div>
             <div>

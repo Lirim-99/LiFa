@@ -9,8 +9,8 @@ export default function InvoicesPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Sales invoices</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Draft → Issued (numbered, journal posted) → Paid → Void. Issuing is
-          transactional — if the journal entry fails, the invoice stays draft.
+          Draft → Issued (numbered, journal posted) → Paid → Void. Issuing is transactional — if the
+          journal entry fails, the invoice stays draft.
         </p>
       </div>
       <InvoicesClient />

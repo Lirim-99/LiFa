@@ -11,7 +11,6 @@ import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useAccounts } from "@/lib/queries/accounts";
 import {
   useCreateJournalEntry,
@@ -57,18 +56,23 @@ export function JournalEntryEditor({
   const isManual = !existing || existing.sourceDocumentType === "MANUAL";
   const canEdit = isDraft && isManual;
 
-  const { register, handleSubmit, control, reset, formState: { errors, isSubmitting } } =
-    useForm<Values>({
-      resolver: zodResolver(Schema),
-      defaultValues: {
-        entryDate: today(),
-        memo: "",
-        lines: [
-          { accountId: "", description: "", debitAmount: 0, creditAmount: 0 },
-          { accountId: "", description: "", debitAmount: 0, creditAmount: 0 },
-        ],
-      },
-    });
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<Values>({
+    resolver: zodResolver(Schema),
+    defaultValues: {
+      entryDate: today(),
+      memo: "",
+      lines: [
+        { accountId: "", description: "", debitAmount: 0, creditAmount: 0 },
+        { accountId: "", description: "", debitAmount: 0, creditAmount: 0 },
+      ],
+    },
+  });
   const { fields, append, remove } = useFieldArray({ control, name: "lines" });
 
   useEffect(() => {
@@ -162,7 +166,10 @@ export function JournalEntryEditor({
               </thead>
               <tbody>
                 {fields.map((field, idx) => (
-                  <tr key={field.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                  <tr
+                    key={field.id}
+                    className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
+                  >
                     <td className="py-2 pr-2">
                       <Select
                         disabled={!canEdit}
@@ -223,7 +230,9 @@ export function JournalEntryEditor({
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => append({ accountId: "", description: "", debitAmount: 0, creditAmount: 0 })}
+              onClick={() =>
+                append({ accountId: "", description: "", debitAmount: 0, creditAmount: 0 })
+              }
             >
               + Add line
             </Button>
@@ -253,7 +262,10 @@ export function JournalEntryEditor({
             </Button>
             {canEdit ? (
               <>
-                <Button type="submit" loading={isSubmitting || create.isPending || update.isPending}>
+                <Button
+                  type="submit"
+                  loading={isSubmitting || create.isPending || update.isPending}
+                >
                   {existing ? "Save" : "Create draft"}
                 </Button>
                 {existing ? (

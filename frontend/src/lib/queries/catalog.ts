@@ -83,8 +83,7 @@ export function useUpdateProductService(id: string) {
 export function useDeactivateProductService() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<void>(`/products-services/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => apiFetch<void>(`/products-services/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: catalogKeys.all });
     },

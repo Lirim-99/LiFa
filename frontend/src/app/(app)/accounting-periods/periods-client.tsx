@@ -93,7 +93,9 @@ export function PeriodsClient() {
                       key={p.id}
                       className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
                     >
-                      <Td className="font-mono text-xs">P{String(p.periodNumber).padStart(2, "0")}</Td>
+                      <Td className="font-mono text-xs">
+                        P{String(p.periodNumber).padStart(2, "0")}
+                      </Td>
                       <Td>{p.startDate.slice(0, 10)}</Td>
                       <Td>{p.endDate.slice(0, 10)}</Td>
                       <Td>
@@ -148,7 +150,9 @@ export function PeriodsClient() {
 
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}>
+    <th
+      className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}
+    >
       {children}
     </th>
   );

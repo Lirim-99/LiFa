@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
@@ -15,7 +14,6 @@ interface Props {
 
 export function CompanySwitcher({ companies, activeCompanyId }: Props) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
   const switchCompany = useSwitchCompany();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 

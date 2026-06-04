@@ -86,9 +86,7 @@ export function PaymentsClient() {
         <PaymentForm onDone={() => setShowNew(false)} onCancel={() => setShowNew(false)} />
       ) : null}
 
-      {openId ? (
-        <PaymentDetail id={openId} onClose={() => setOpenId(null)} />
-      ) : null}
+      {openId ? <PaymentDetail id={openId} onClose={() => setOpenId(null)} /> : null}
 
       <Card>
         <CardContent className="p-0">
@@ -131,10 +129,20 @@ export function PaymentsClient() {
             Page {data.page} of {data.totalPages} · {data.total} total
           </span>
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
               Previous
             </Button>
-            <Button size="sm" variant="secondary" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page >= data.totalPages}
+              onClick={() => setPage(page + 1)}
+            >
               Next
             </Button>
           </div>
@@ -217,7 +225,10 @@ function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
             </thead>
             <tbody>
               {(payment.allocations ?? []).map((a) => (
-                <tr key={a.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
+                <tr
+                  key={a.id}
+                  className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
+                >
                   <td className="py-2 font-mono text-xs">
                     {a.invoice?.invoiceNumber ?? a.invoiceId.slice(0, 8)}
                   </td>
@@ -225,7 +236,11 @@ function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
                     {Number(a.allocatedAmount).toFixed(2)}
                   </td>
                   <td className="py-2">
-                    {a.isVoided ? <Badge variant="danger">voided</Badge> : <Badge variant="success">active</Badge>}
+                    {a.isVoided ? (
+                      <Badge variant="danger">voided</Badge>
+                    ) : (
+                      <Badge variant="success">active</Badge>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -239,7 +254,12 @@ function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
               <Button
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Void this payment? Reverses allocations and posts a reversal journal entry.")) return;
+                  if (
+                    !confirm(
+                      "Void this payment? Reverses allocations and posts a reversal journal entry.",
+                    )
+                  )
+                    return;
                   setSubmitError(null);
                   try {
                     await voidPayment.mutateAsync(payment.id);
@@ -265,7 +285,9 @@ function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}>
+    <th
+      className={`px-4 py-2 text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 ${className}`}
+    >
       {children}
     </th>
   );

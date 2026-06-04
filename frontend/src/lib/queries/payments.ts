@@ -69,8 +69,7 @@ export function useCreatePayment() {
 export function useVoidPayment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<Payment>(`/payments/${id}/void`, { method: "POST" }),
+    mutationFn: (id: string) => apiFetch<Payment>(`/payments/${id}/void`, { method: "POST" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: paymentKeys.all });
       void qc.invalidateQueries({ queryKey: ["invoices"] });

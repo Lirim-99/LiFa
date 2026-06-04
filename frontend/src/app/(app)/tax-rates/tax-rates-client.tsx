@@ -172,7 +172,12 @@ function RateForm({
               />
             </div>
             <div className="flex items-end gap-2">
-              <input id="isDefault" type="checkbox" className="h-4 w-4" {...register("isDefault")} />
+              <input
+                id="isDefault"
+                type="checkbox"
+                className="h-4 w-4"
+                {...register("isDefault")}
+              />
               <Label htmlFor="isDefault">Default</Label>
             </div>
             <div>
