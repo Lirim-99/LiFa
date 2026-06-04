@@ -1,22 +1,29 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication } from "@nestjs/common";
+import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
-import { App } from "supertest/types";
-import { AppModule } from "./../src/app.module";
+import { createTestApp } from "./setup/test-app";
+import { disconnectTestPrisma, resetTestDb } from "./setup/test-db";
 
-describe("AppController (e2e)", () => {
-  let app: INestApplication<App>;
+describe("App smoke (e2e)", () => {
+  let app: INestApplication;
 
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+  afterAll(async () => {
+    await app.close();
+    await disconnectTestPrisma();
+  });
   beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    await app.init();
+    await resetTestDb();
   });
 
-  it("/health (GET)", () => {
-    return request(app.getHttpServer()).get("/health").expect(200).expect({ status: "ok" });
+  it("GET /health returns ok", async () => {
+    const res = await request(app.getHttpServer()).get("/health");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: "ok" });
+  });
+
+  it("protected routes 401 without a JWT", async () => {
+    await request(app.getHttpServer()).get("/users/me").expect(401);
   });
 });

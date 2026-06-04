@@ -12,6 +12,7 @@
     "db:push": "pnpm --filter backend db:push",
     "db:migrate": "pnpm --filter backend db:migrate",
     "db:seed": "pnpm --filter backend db:seed",
+    "db:seed:demo": "pnpm --filter backend db:seed:demo",
     "db:studio": "pnpm --filter backend db:studio"
   },
   "devDependencies": {

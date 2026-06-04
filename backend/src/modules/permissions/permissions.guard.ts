@@ -16,9 +16,17 @@ import {
 } from "./decorators/require-permission.decorator";
 import { roleHasPermission } from "./permissions.matrix";
 
+const COMPANY_HEADER = "x-company-id";
+
 /**
  * Global guard. Enforces `@RequirePermission(...)` against the user's role
  * in the active company. Routes without the decorator pass through.
+ *
+ * Because this is a global guard it runs BEFORE controller-scoped guards
+ * (like CompanyGuard). When `request.company` isn't set yet, this guard
+ * resolves the company context itself from the `X-Company-Id` header or
+ * the user's default company — the same logic CompanyGuard uses — and
+ * attaches it to `request.company` so downstream code still works.
  */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -44,7 +52,7 @@ export class PermissionsGuard implements CanActivate {
     const user = request.user;
     if (!user) throw new UnauthorizedException();
 
-    const companyId = this.resolveCompanyId(request, meta);
+    const companyId = await this.resolveCompanyId(request, meta, user.userId);
     if (!companyId) {
       throw new ForbiddenException("No company context for permission check");
     }
@@ -54,24 +62,55 @@ export class PermissionsGuard implements CanActivate {
       include: { role: { select: { code: true } } },
     });
     if (!access) {
-      // 404-style: hide that the company exists by reporting Forbidden — and
-      // the absence of access is itself a permission denial.
       throw new ForbiddenException("Access denied");
     }
 
     if (!roleHasPermission(access.role.code, meta.permission)) {
       throw new ForbiddenException(`Requires permission: ${meta.permission}`);
     }
+
+    // Ensure request.company is populated for @CurrentCompany() downstream,
+    // in case CompanyGuard hasn't run yet.
+    if (!request.company) {
+      request.company = { companyId: access.companyId, roleCode: access.role.code };
+    }
+
     return true;
   }
 
-  private resolveCompanyId(
-    request: { params: Record<string, string>; company?: CompanyContext },
+  /**
+   * Resolve the company ID for permission checking. Tries, in order:
+   *   1. Explicit URL param (from `@RequirePermission('x', { companyIdParam })`)
+   *   2. `request.company` (already set by CompanyGuard if it ran first)
+   *   3. `X-Company-Id` header
+   *   4. User's default company
+   */
+  private async resolveCompanyId(
+    request: {
+      headers: Record<string, string | string[] | undefined>;
+      params: Record<string, string>;
+      company?: CompanyContext;
+    },
     meta: RequirePermissionMetadata,
-  ): string | undefined {
+    userId: string,
+  ): Promise<string | undefined> {
     if (meta.options.companyIdParam) {
       return request.params[meta.options.companyIdParam];
     }
-    return request.company?.companyId;
+    if (request.company?.companyId) {
+      return request.company.companyId;
+    }
+
+    // CompanyGuard (controller-scoped) hasn't run yet — resolve inline.
+    const headerValue = request.headers[COMPANY_HEADER];
+    const fromHeader = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    if (fromHeader) return fromHeader;
+
+    // Fall back to user's default company.
+    const defaultAccess = await this.prisma.userCompanyAccess.findFirst({
+      where: { userId, isDefault: true },
+      select: { companyId: true },
+    });
+    return defaultAccess?.companyId;
   }
 }

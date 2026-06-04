@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { backendUrl } from "@/lib/backend";
-import { setAuthCookies } from "@/lib/session";
+import { setAuthCookies, setActiveCompanyCookie } from "@/lib/session";
 
 interface BackendTokens {
   accessToken: string;
@@ -44,5 +44,24 @@ export async function POST(request: Request) {
 
   const tokens = json as BackendTokens;
   await setAuthCookies(tokens);
+
+  // Reset the active-company cookie to the user's default company so a stale
+  // cookie from a previous session (or a re-seeded DB) can't cause 403s.
+  try {
+    const me = await fetch(backendUrl("/users/me/companies"), {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+      cache: "no-store",
+    });
+    if (me.ok) {
+      const companies = (await me.json()) as { companyId: string; isDefault: boolean }[];
+      const defaultCo = companies.find((c) => c.isDefault) ?? companies[0];
+      if (defaultCo) {
+        await setActiveCompanyCookie(defaultCo.companyId);
+      }
+    }
+  } catch {
+    // Non-fatal — worst case the user can switch company manually.
+  }
+
   return NextResponse.json({ ok: true });
 }

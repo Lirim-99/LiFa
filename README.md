@@ -80,8 +80,25 @@ Health check: `GET http://localhost:3001/health` → `{ "status": "ok" }`
 - `pnpm format` — format with Prettier (root)
 - `pnpm db:generate` — regenerate Prisma Client after schema changes
 - `pnpm db:migrate` — apply pending Prisma migrations
-- `pnpm db:seed` — seed roles + system tax-rate templates
+- `pnpm db:seed` — seed roles + system tax-rate templates (required reference data)
+- `pnpm db:seed:demo` — populate a fully-furnished demo company you can log in to (see below)
 - `pnpm db:studio` — open Prisma Studio
+
+### Demo data
+
+```bash
+pnpm db:seed:demo
+```
+
+Idempotent — re-running wipes and re-seeds. Sign in at `/login` with any of:
+
+| Role       | Email                  | Password       |
+| ---------- | ---------------------- | -------------- |
+| owner      | owner@lifa.demo        | `Sup3rSecret!` |
+| accountant | accountant@lifa.demo   | `Sup3rSecret!` |
+| viewer     | viewer@lifa.demo       | `Sup3rSecret!` |
+
+You'll find one company "Acme Trading SHPK" with 6 contacts, 4 catalog items, 6 invoices (DRAFT → VOID), 2 payments, and 3 journal entries.
 
 ## Docs
 
