@@ -40,6 +40,32 @@ pnpm install
 
 ## Run apps
 
+### Quick start (one command)
+
+The `start` scripts handle Docker + migrations + both dev servers in one go.
+
+```powershell
+# Windows / PowerShell
+.\start.ps1
+```
+
+```bash
+# macOS / Linux / Git Bash
+./start.sh
+```
+
+What it does: starts Docker Desktop if needed → brings up the Postgres container → waits until it's ready → applies pending Prisma migrations → runs backend + frontend concurrently with prefixed output. Ctrl-C stops both. Pass `-StopDocker` (PowerShell) or `STOP_DOCKER=1` (bash) to also stop Postgres on exit.
+
+### Manual
+
+```bash
+docker compose up -d         # Postgres
+pnpm db:migrate              # apply migrations (first run only)
+pnpm dev                     # backend + frontend, concurrent + prefixed output
+```
+
+Or one workspace at a time:
+
 | App | Command             | URL                   |
 | --- | ------------------- | --------------------- |
 | API | `pnpm dev:backend`  | http://localhost:3001 |
@@ -49,10 +75,13 @@ Health check: `GET http://localhost:3001/health` → `{ "status": "ok" }`
 
 ## Useful scripts
 
+- `pnpm dev` — run backend + frontend concurrently (BE/FE prefixed, color-coded)
 - `pnpm lint` — lint all workspaces
 - `pnpm format` — format with Prettier (root)
 - `pnpm db:generate` — regenerate Prisma Client after schema changes
-- `pnpm db:push` — push schema to DB (dev; use migrations later for production)
+- `pnpm db:migrate` — apply pending Prisma migrations
+- `pnpm db:seed` — seed roles + system tax-rate templates
+- `pnpm db:studio` — open Prisma Studio
 
 ## Docs
 

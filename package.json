@@ -2,6 +2,7 @@
   "name": "lifa",
   "private": true,
   "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names \"BE,FE\" --prefix-colors \"blue,magenta\" \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
     "dev:backend": "pnpm --filter backend dev",
     "dev:frontend": "pnpm --filter frontend dev",
     "lint": "pnpm -r lint",
@@ -14,6 +15,7 @@
     "db:studio": "pnpm --filter backend db:studio"
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
     "prettier": "^3.5.3"
   },
   "engines": {

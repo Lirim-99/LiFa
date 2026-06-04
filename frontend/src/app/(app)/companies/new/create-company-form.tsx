@@ -60,7 +60,7 @@ export function CreateCompanyForm() {
     );
     try {
       await create.mutateAsync(payload as never);
-      router.replace("/dashboard");
+      router.replace("/");
       router.refresh();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to create company");

@@ -1,5 +1,6 @@
 "use client";
 
+import { BuildingOffice2Icon, ChevronUpDownIcon, PlusIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,6 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
   const switchCompany = useSwitchCompany();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  // Close on outside click.
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
@@ -33,8 +33,9 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
     return (
       <Link
         href="/companies/new"
-        className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-950"
       >
+        <PlusIcon className="h-3.5 w-3.5" />
         Create your first company
       </Link>
     );
@@ -56,30 +57,23 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+        className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
       >
-        <span className="font-medium">{active.tradeName ?? active.legalName}</span>
+        <BuildingOffice2Icon className="h-4 w-4 text-slate-400" />
+        <span className="max-w-45 truncate font-medium">
+          {active.tradeName ?? active.legalName}
+        </span>
         <Badge variant="outline" className="text-[10px]">
           {active.roleCode}
         </Badge>
-        <svg
-          className={cn("h-3 w-3 transition-transform", open && "rotate-180")}
-          viewBox="0 0 12 8"
-          fill="none"
-          aria-hidden
-        >
-          <path
-            d="M1 1l5 5 5-5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <ChevronUpDownIcon className="h-4 w-4 text-slate-400" />
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-40 mt-1 w-72 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900">
+          <div className="border-b border-slate-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:text-slate-500">
+            Your companies
+          </div>
           <ul className="max-h-72 overflow-y-auto py-1">
             {companies.map((c) => {
               const isActive = c.companyId === active.companyId;
@@ -89,17 +83,22 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
                     type="button"
                     onClick={() => handleSwitch(c.companyId)}
                     className={cn(
-                      "flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800",
-                      isActive && "bg-zinc-50 dark:bg-zinc-900",
+                      "flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800",
+                      isActive && "bg-sky-50/60 dark:bg-sky-950/30",
                     )}
                   >
-                    <span className="flex flex-col">
-                      <span className="font-medium">{c.tradeName ?? c.legalName}</span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">
+                        {c.tradeName ?? c.legalName}
+                      </span>
                       {c.tradeName ? (
-                        <span className="text-xs text-zinc-500">{c.legalName}</span>
+                        <span className="truncate text-xs text-slate-500">{c.legalName}</span>
                       ) : null}
                     </span>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge
+                      variant={isActive ? "info" : "outline"}
+                      className="shrink-0 text-[10px]"
+                    >
                       {c.roleCode}
                     </Badge>
                   </button>
@@ -107,13 +106,14 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
               );
             })}
           </ul>
-          <div className="border-t border-zinc-200 px-3 py-2 dark:border-zinc-800">
+          <div className="border-t border-slate-100 dark:border-slate-800">
             <Link
               href="/companies/new"
               onClick={() => setOpen(false)}
-              className="text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-sky-700 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-950/40"
             >
-              + Add another company
+              <PlusIcon className="h-4 w-4" />
+              Add another company
             </Link>
           </div>
         </div>

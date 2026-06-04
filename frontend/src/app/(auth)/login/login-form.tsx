@@ -48,7 +48,7 @@ export function LoginForm() {
       setSubmitError(body.error ?? "Sign-in failed");
       return;
     }
-    const target = searchParams.get("from") ?? "/dashboard";
+    const target = searchParams.get("from") ?? "/";
     router.replace(target);
     router.refresh();
   });

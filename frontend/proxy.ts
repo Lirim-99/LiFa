@@ -30,7 +30,7 @@ export function proxy(req: NextRequest) {
 
   if (hasToken && isPublic) {
     const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/";
     url.search = "";
     return NextResponse.redirect(url);
   }

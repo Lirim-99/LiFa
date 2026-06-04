@@ -50,7 +50,7 @@ export function RegisterForm() {
       setSubmitError(body.error ?? "Registration failed");
       return;
     }
-    router.replace("/dashboard");
+    router.replace("/");
     router.refresh();
   });
 
