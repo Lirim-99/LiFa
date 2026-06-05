@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/i18n/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import {
 import type { AccountingPeriod } from "@/lib/types";
 
 export function PeriodsClient() {
+  const t = useT();
   const { data, isLoading } = usePeriods();
   const generate = useGeneratePeriods();
   const close = useClosePeriod();
@@ -35,11 +37,11 @@ export function PeriodsClient() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Generate periods for a fiscal year</CardTitle>
+          <CardTitle>{t("periods.generateTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="flex items-end gap-3">
           <div>
-            <Label htmlFor="newYear">Fiscal year</Label>
+            <Label htmlFor="newYear">{t("periods.fiscalYear")}</Label>
             <Input
               id="newYear"
               type="number"
@@ -56,33 +58,33 @@ export function PeriodsClient() {
               try {
                 await generate.mutateAsync(newYear);
               } catch (err) {
-                setActionError(err instanceof Error ? err.message : "Failed");
+                setActionError(err instanceof Error ? err.message : t("periods.actionFailed"));
               }
             }}
             loading={generate.isPending}
           >
-            Generate
+            {t("periods.generate")}
           </Button>
           <FormError message={actionError ?? undefined} />
         </CardContent>
       </Card>
 
-      {isLoading ? <p className="text-sm text-zinc-500">Loading…</p> : null}
+      {isLoading ? <p className="text-sm text-zinc-500">{t("common.loading")}</p> : null}
 
       {years.map((year) => (
         <Card key={year}>
           <CardHeader>
-            <CardTitle>FY {year}</CardTitle>
+            <CardTitle>{t("periods.fyLabel", { year })}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <table className="w-full text-sm">
               <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
                 <tr className="text-left">
-                  <Th>Period</Th>
-                  <Th>Start</Th>
-                  <Th>End</Th>
-                  <Th>Status</Th>
-                  <Th className="text-right">Actions</Th>
+                  <Th>{t("periods.period")}</Th>
+                  <Th>{t("periods.start")}</Th>
+                  <Th>{t("periods.end")}</Th>
+                  <Th>{t("common.status")}</Th>
+                  <Th className="text-right">{t("common.actions")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -100,7 +102,7 @@ export function PeriodsClient() {
                       <Td>{p.endDate.slice(0, 10)}</Td>
                       <Td>
                         <Badge variant={p.status === "OPEN" ? "success" : "outline"}>
-                          {p.status}
+                          {t(`enums.periodStatus.${p.status}`)}
                         </Badge>
                       </Td>
                       <Td className="text-right">
@@ -109,16 +111,19 @@ export function PeriodsClient() {
                             size="sm"
                             variant="ghost"
                             onClick={async () => {
-                              if (!confirm(`Close period P${p.periodNumber}?`)) return;
+                              if (!confirm(t("periods.closeConfirm", { period: p.periodNumber })))
+                                return;
                               setActionError(null);
                               try {
                                 await close.mutateAsync(p.id);
                               } catch (err) {
-                                setActionError(err instanceof Error ? err.message : "Failed");
+                                setActionError(
+                                  err instanceof Error ? err.message : t("periods.actionFailed"),
+                                );
                               }
                             }}
                           >
-                            Close
+                            {t("periods.close")}
                           </Button>
                         ) : (
                           <Button
@@ -129,11 +134,13 @@ export function PeriodsClient() {
                               try {
                                 await reopen.mutateAsync(p.id);
                               } catch (err) {
-                                setActionError(err instanceof Error ? err.message : "Failed");
+                                setActionError(
+                                  err instanceof Error ? err.message : t("periods.actionFailed"),
+                                );
                               }
                             }}
                           >
-                            Reopen
+                            {t("periods.reopen")}
                           </Button>
                         )}
                       </Td>

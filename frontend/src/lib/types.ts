@@ -1,30 +1,34 @@
 /**
  * Mirrors the backend enums + a handful of response shapes. Kept in the
  * frontend to avoid pulling Prisma (server-only) into client bundles.
+ *
+ * Each option's `label` is an i18n key (resolved at render via `t(label)` or
+ * the `translateOptions` helper), NOT display text. English source strings live
+ * in `src/i18n/messages/en.json` under `enums.*`.
  */
 
 export const LEGAL_FORMS = [
-  { value: "BI", label: "BI — Individual business" },
-  { value: "OP", label: "OP — General partnership" },
-  { value: "KO", label: "KO — Limited partnership" },
-  { value: "SHPK", label: "SHPK — Limited liability company" },
-  { value: "SHA", label: "SHA — Joint-stock company" },
-  { value: "FOREIGN_BRANCH", label: "Foreign branch" },
-  { value: "NGO", label: "NGO" },
-  { value: "OTHER", label: "Other" },
+  { value: "BI", label: "enums.legalForm.BI" },
+  { value: "OP", label: "enums.legalForm.OP" },
+  { value: "KO", label: "enums.legalForm.KO" },
+  { value: "SHPK", label: "enums.legalForm.SHPK" },
+  { value: "SHA", label: "enums.legalForm.SHA" },
+  { value: "FOREIGN_BRANCH", label: "enums.legalForm.FOREIGN_BRANCH" },
+  { value: "NGO", label: "enums.legalForm.NGO" },
+  { value: "OTHER", label: "enums.legalForm.OTHER" },
 ] as const;
 export type LegalForm = (typeof LEGAL_FORMS)[number]["value"];
 
 export const ADDRESS_TYPES = [
-  { value: "REGISTERED", label: "Registered" },
-  { value: "BUSINESS", label: "Business" },
-  { value: "OTHER", label: "Other" },
+  { value: "REGISTERED", label: "enums.addressType.REGISTERED" },
+  { value: "BUSINESS", label: "enums.addressType.BUSINESS" },
+  { value: "OTHER", label: "enums.addressType.OTHER" },
 ] as const;
 export type AddressType = (typeof ADDRESS_TYPES)[number]["value"];
 
 export const ACTIVITY_TYPES = [
-  { value: "PRIMARY", label: "Primary" },
-  { value: "SECONDARY", label: "Secondary" },
+  { value: "PRIMARY", label: "enums.activityType.PRIMARY" },
+  { value: "SECONDARY", label: "enums.activityType.SECONDARY" },
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]["value"];
 
@@ -32,36 +36,36 @@ export const ROLE_CODES = ["owner", "admin", "accountant", "viewer"] as const;
 export type RoleCode = (typeof ROLE_CODES)[number];
 
 export const PRODUCT_SERVICE_TYPES = [
-  { value: "PRODUCT", label: "Product" },
-  { value: "SERVICE", label: "Service" },
+  { value: "PRODUCT", label: "enums.productServiceType.PRODUCT" },
+  { value: "SERVICE", label: "enums.productServiceType.SERVICE" },
 ] as const;
 export type ProductServiceType = (typeof PRODUCT_SERVICE_TYPES)[number]["value"];
 
 export const TAX_CALCULATION_TYPES = [
-  { value: "EXCLUSIVE", label: "Exclusive (net + tax)" },
-  { value: "INCLUSIVE", label: "Inclusive (gross contains tax)" },
+  { value: "EXCLUSIVE", label: "enums.taxCalculationType.EXCLUSIVE" },
+  { value: "INCLUSIVE", label: "enums.taxCalculationType.INCLUSIVE" },
 ] as const;
 export type TaxCalculationType = (typeof TAX_CALCULATION_TYPES)[number]["value"];
 
 export const TAX_SCOPES = [
-  { value: "SALES", label: "Sales" },
-  { value: "PURCHASES", label: "Purchases" },
-  { value: "BOTH", label: "Both" },
+  { value: "SALES", label: "enums.taxScope.SALES" },
+  { value: "PURCHASES", label: "enums.taxScope.PURCHASES" },
+  { value: "BOTH", label: "enums.taxScope.BOTH" },
 ] as const;
 export type TaxScope = (typeof TAX_SCOPES)[number]["value"];
 
 export const ACCOUNT_TYPES = [
-  { value: "ASSET", label: "Asset" },
-  { value: "LIABILITY", label: "Liability" },
-  { value: "EQUITY", label: "Equity" },
-  { value: "REVENUE", label: "Revenue" },
-  { value: "EXPENSE", label: "Expense" },
+  { value: "ASSET", label: "enums.accountType.ASSET" },
+  { value: "LIABILITY", label: "enums.accountType.LIABILITY" },
+  { value: "EQUITY", label: "enums.accountType.EQUITY" },
+  { value: "REVENUE", label: "enums.accountType.REVENUE" },
+  { value: "EXPENSE", label: "enums.accountType.EXPENSE" },
 ] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number]["value"];
 
 export const NORMAL_BALANCES = [
-  { value: "DEBIT", label: "Debit" },
-  { value: "CREDIT", label: "Credit" },
+  { value: "DEBIT", label: "enums.normalBalance.DEBIT" },
+  { value: "CREDIT", label: "enums.normalBalance.CREDIT" },
 ] as const;
 export type NormalBalance = (typeof NORMAL_BALANCES)[number]["value"];
 
@@ -332,4 +336,52 @@ export interface Payment {
   voidedJournalEntryId: string | null;
   allocations?: PaymentAllocation[];
   contact?: { id: string; displayName: string; email?: string | null };
+}
+
+// --- Fiscalization (Kosovo / ATK) — see FISCALIZATION.md ---
+
+export const FISCAL_PROVIDERS = [
+  { value: "NONE", label: "enums.fiscalProvider.NONE" },
+  { value: "MANUAL_EDI", label: "enums.fiscalProvider.MANUAL_EDI" },
+  { value: "ATK_EFS", label: "enums.fiscalProvider.ATK_EFS" },
+] as const;
+export type FiscalProvider = (typeof FISCAL_PROVIDERS)[number]["value"];
+
+export const FISCAL_COUPON_STATUSES = [
+  { value: "PENDING", label: "enums.fiscalCouponStatus.PENDING" },
+  { value: "FISCALIZED", label: "enums.fiscalCouponStatus.FISCALIZED" },
+  { value: "FAILED", label: "enums.fiscalCouponStatus.FAILED" },
+  { value: "VOIDED", label: "enums.fiscalCouponStatus.VOIDED" },
+  { value: "EXEMPT", label: "enums.fiscalCouponStatus.EXEMPT" },
+] as const;
+export type FiscalCouponStatus = (typeof FISCAL_COUPON_STATUSES)[number]["value"];
+
+export interface CompanyFiscalConfig {
+  companyId: string;
+  enabled: boolean;
+  provider: FiscalProvider;
+  environment: "TEST" | "PRODUCTION";
+  businessUnitCode: string | null;
+  operatorCode: string | null;
+  efsSoftwareCode: string | null;
+  efsMaintainer: string | null;
+  verificationBaseUrl: string | null;
+}
+
+export interface FiscalCoupon {
+  id: string;
+  companyId: string;
+  invoiceId: string;
+  status: FiscalCouponStatus;
+  couponType: "SALE" | "RETURN";
+  provider: FiscalProvider;
+  totalAmount: string;
+  taxAmount: string;
+  currency: string;
+  fcuin: string | null;
+  verificationUrl: string | null;
+  qrPayload: string | null;
+  taxBlockCode: string | null;
+  fiscalizedAt: string | null;
+  errorMessage: string | null;
 }

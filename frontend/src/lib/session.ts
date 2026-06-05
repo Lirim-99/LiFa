@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { LOCALE_COOKIE, type Locale } from "@/i18n/config";
 
 /**
  * HttpOnly cookie names used by the BFF. Browser JS cannot read these —
@@ -55,6 +56,21 @@ export async function setActiveCompanyCookie(companyId: string): Promise<void> {
   const store = await cookies();
   store.set(COOKIE_ACTIVE_COMPANY, companyId, {
     ...COOKIE_BASE,
+    maxAge: 60 * 60 * 24 * 365, // 1 year — sticky preference
+  });
+}
+
+/**
+ * Persist the UI language preference. Not HttpOnly — it's not sensitive and the
+ * locale switcher reads it client-side. Read back by `getLocale()` in i18n/server.
+ */
+export async function setLocaleCookie(locale: Locale): Promise<void> {
+  const store = await cookies();
+  store.set(LOCALE_COOKIE, locale, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
     maxAge: 60 * 60 * 24 * 365, // 1 year — sticky preference
   });
 }

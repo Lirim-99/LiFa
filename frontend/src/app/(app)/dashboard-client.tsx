@@ -11,6 +11,9 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocale, useT } from "@/i18n/client";
+import type { Locale } from "@/i18n/config";
+import { formatCurrency } from "@/i18n/format";
 import { useInvoices } from "@/lib/queries/invoices";
 import { useArAging, useProfitAndLoss } from "@/lib/queries/reports";
 import type { Invoice, InvoiceStatus } from "@/lib/types";
@@ -33,6 +36,8 @@ export function DashboardClient({
   firstName: string;
   companyName: string;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const fromOfMonth = firstDayOfMonth();
   const today = todayIso();
 
@@ -51,10 +56,10 @@ export function DashboardClient({
       {/* Greeting */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome back, {firstName} 👋
+          {t("dashboard.greeting", { firstName })} 👋
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Active company:{" "}
+          {t("dashboard.activeCompany")}{" "}
           <span className="font-medium text-slate-700 dark:text-slate-200">{companyName}</span>
         </p>
       </div>
@@ -62,63 +67,63 @@ export function DashboardClient({
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          label="Outstanding AR"
-          value={aging ? fmtMoney(aging.totals.total) : "—"}
+          label={t("dashboard.outstandingAr")}
+          value={aging ? fmtMoney(aging.totals.total, locale) : "—"}
           tone="warning"
           icon={<ClockIcon className="h-5 w-5" />}
-          hint={aging ? `${aging.rows.length} customers` : ""}
+          hint={aging ? t("dashboard.customersCount", { count: aging.rows.length }) : ""}
         />
         <MetricCard
-          label="Revenue this month"
-          value={pnl ? fmtMoney(pnl.totalRevenue) : "—"}
+          label={t("dashboard.revenueThisMonth")}
+          value={pnl ? fmtMoney(pnl.totalRevenue, locale) : "—"}
           tone="success"
           icon={<BanknotesIcon className="h-5 w-5" />}
-          hint={pnl ? `Net income ${fmtMoney(pnl.netIncome)}` : ""}
+          hint={pnl ? t("dashboard.netIncome", { amount: fmtMoney(pnl.netIncome, locale) }) : ""}
         />
         <MetricCard
-          label="Invoices this month"
+          label={t("dashboard.invoicesThisMonth")}
           value={monthInvoices ? String(monthInvoices.total) : "—"}
           tone="info"
           icon={<DocumentTextIcon className="h-5 w-5" />}
           hint=""
         />
         <MetricCard
-          label="Pending drafts"
+          label={t("dashboard.pendingDrafts")}
           value={drafts ? String(drafts.total) : "—"}
           tone="default"
           icon={<DocumentTextIcon className="h-5 w-5" />}
-          hint={drafts && drafts.total > 0 ? "Finish or delete" : ""}
+          hint={drafts && drafts.total > 0 ? t("dashboard.finishOrDelete") : ""}
         />
       </div>
 
       {/* Quick actions */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Quick actions</CardTitle>
+          <CardTitle className="text-base">{t("dashboard.quickActions")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Link href="/invoices">
             <Button>
               <PlusIcon className="h-4 w-4" />
-              New invoice
+              {t("dashboard.newInvoice")}
             </Button>
           </Link>
           <Link href="/payments">
             <Button variant="accent">
               <PlusIcon className="h-4 w-4" />
-              Record payment
+              {t("dashboard.recordPayment")}
             </Button>
           </Link>
           <Link href="/journal-entries">
             <Button variant="secondary">
               <PlusIcon className="h-4 w-4" />
-              Journal entry
+              {t("dashboard.journalEntry")}
             </Button>
           </Link>
           <Link href="/contacts">
             <Button variant="secondary">
               <PlusIcon className="h-4 w-4" />
-              New contact
+              {t("dashboard.newContact")}
             </Button>
           </Link>
         </CardContent>
@@ -128,21 +133,21 @@ export function DashboardClient({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Recent invoices</CardTitle>
+            <CardTitle className="text-base">{t("dashboard.recentInvoices")}</CardTitle>
             <Link
               href="/invoices"
               className="inline-flex items-center gap-1 text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
             >
-              View all <ArrowRightIcon className="h-3.5 w-3.5" />
+              {t("dashboard.viewAll")} <ArrowRightIcon className="h-3.5 w-3.5" />
             </Link>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {!recent || recent.data.length === 0 ? (
             <EmptyState
-              title="No invoices yet"
-              description="Create your first invoice to start tracking receivables."
-              cta={{ href: "/invoices", label: "Create invoice" }}
+              title={t("dashboard.noInvoicesTitle")}
+              description={t("dashboard.noInvoicesDescription")}
+              cta={{ href: "/invoices", label: t("dashboard.createInvoice") }}
             />
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -157,15 +162,17 @@ export function DashboardClient({
                         {inv.contact?.displayName ?? "—"}
                       </div>
                       <div className="font-mono text-xs text-slate-500">
-                        {inv.invoiceNumber ?? "draft"} · {inv.issueDate.slice(0, 10)}
+                        {inv.invoiceNumber ?? t("dashboard.draft")} · {inv.issueDate.slice(0, 10)}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-right font-mono text-sm">
-                      {fmtMoney(inv.totalAmount)}
+                      {fmtMoney(inv.totalAmount, locale)}
                     </span>
-                    <Badge variant={STATUS_VARIANT[inv.status]}>{inv.status}</Badge>
+                    <Badge variant={STATUS_VARIANT[inv.status]}>
+                      {t(`enums.invoiceStatus.${inv.status}`)}
+                    </Badge>
                   </div>
                 </li>
               ))}
@@ -242,10 +249,10 @@ function EmptyState({
   );
 }
 
-function fmtMoney(s: string): string {
+function fmtMoney(s: string, locale: Locale): string {
   const n = Number(s);
   if (!Number.isFinite(n)) return s;
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR" }).format(n);
+  return formatCurrency(n, locale);
 }
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);

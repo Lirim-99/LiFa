@@ -124,6 +124,27 @@ enum DiscountType {
   FIXED
 }
 
+// --- Fiscalization (Kosovo / ATK) — see FISCALIZATION.md ---
+
+enum FiscalProvider {
+  NONE // fiscalization disabled
+  MANUAL_EDI // operator records FCUIN/QR from ATK's EDI portal / tax block
+  ATK_EFS // certified Electronic Fiscal Software gateway (integration point)
+}
+
+enum FiscalCouponStatus {
+  PENDING // awaiting fiscalization
+  FISCALIZED // FCUIN + QR obtained from ATK
+  FAILED // provider returned an error
+  VOIDED // coupon reversed (e.g. invoice voided)
+  EXEMPT // sale out of fiscalization scope
+}
+
+enum FiscalCouponType {
+  SALE
+  RETURN
+}
+
 // ---------------------------------------------------------------------------
 // Platform / Auth
 // ---------------------------------------------------------------------------
@@ -138,18 +159,18 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  companyAccess     UserCompanyAccess[]
-  createdCompanies  Company[]              @relation("CompanyCreatedBy")
-  createdContacts   Contact[]              @relation("ContactCreatedBy")
-  createdProducts   ProductService[]       @relation("ProductCreatedBy")
-  createdAccounts   Account[]              @relation("AccountCreatedBy")
-  closedPeriods     AccountingPeriod[]     @relation("PeriodClosedBy")
-  postedJournals    JournalEntry[]         @relation("JournalPostedBy")
-  createdJournals   JournalEntry[]         @relation("JournalCreatedBy")
-  createdInvoices   Invoice[]              @relation("InvoiceCreatedBy")
-  createdPayments   Payment[]              @relation("PaymentCreatedBy")
-  createdAllocs     PaymentAllocation[]    @relation("AllocationCreatedBy")
-  auditLogs         AuditLog[]
+  companyAccess    UserCompanyAccess[]
+  createdCompanies Company[]           @relation("CompanyCreatedBy")
+  createdContacts  Contact[]           @relation("ContactCreatedBy")
+  createdProducts  ProductService[]    @relation("ProductCreatedBy")
+  createdAccounts  Account[]           @relation("AccountCreatedBy")
+  closedPeriods    AccountingPeriod[]  @relation("PeriodClosedBy")
+  postedJournals   JournalEntry[]      @relation("JournalPostedBy")
+  createdJournals  JournalEntry[]      @relation("JournalCreatedBy")
+  createdInvoices  Invoice[]           @relation("InvoiceCreatedBy")
+  createdPayments  Payment[]           @relation("PaymentCreatedBy")
+  createdAllocs    PaymentAllocation[] @relation("AllocationCreatedBy")
+  auditLogs        AuditLog[]
 
   @@map("users")
 }
@@ -190,22 +211,22 @@ model UserCompanyAccess {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id                    String    @id @default(uuid()) @db.Uuid
-  legalName             String    @map("legal_name")
-  tradeName             String?   @map("trade_name")
-  legalForm             LegalForm @map("legal_form")
-  uinNui                String?   @map("uin_nui")
-  fiscalNumber          String?   @map("fiscal_number")
-  vatNumber             String?   @map("vat_number")
-  registrationDate      DateTime? @map("registration_date") @db.Date
-  email                 String?
-  phone                 String?
-  website               String?
-  defaultCurrency       String    @default("EUR") @map("default_currency")
-  fiscalYearStartMonth  Int       @default(1) @map("fiscal_year_start_month")
-  createdBy             String    @map("created_by") @db.Uuid
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid()) @db.Uuid
+  legalName            String    @map("legal_name")
+  tradeName            String?   @map("trade_name")
+  legalForm            LegalForm @map("legal_form")
+  uinNui               String?   @map("uin_nui")
+  fiscalNumber         String?   @map("fiscal_number")
+  vatNumber            String?   @map("vat_number")
+  registrationDate     DateTime? @map("registration_date") @db.Date
+  email                String?
+  phone                String?
+  website              String?
+  defaultCurrency      String    @default("EUR") @map("default_currency")
+  fiscalYearStartMonth Int       @default(1) @map("fiscal_year_start_month")
+  createdBy            String    @map("created_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   creator           User                     @relation("CompanyCreatedBy", fields: [createdBy], references: [id])
   userAccess        UserCompanyAccess[]
@@ -222,22 +243,24 @@ model Company {
   payments          Payment[]
   documentSequences DocumentSequence[]
   auditLogs         AuditLog[]
+  fiscalConfig      CompanyFiscalConfig?
+  fiscalCoupons     FiscalCoupon[]
 
   @@map("companies")
 }
 
 model CompanyAddress {
-  id          String      @id @default(uuid()) @db.Uuid
-  companyId   String      @map("company_id") @db.Uuid
-  addressType AddressType @map("address_type")
-  country     String?
+  id           String      @id @default(uuid()) @db.Uuid
+  companyId    String      @map("company_id") @db.Uuid
+  addressType  AddressType @map("address_type")
+  country      String?
   municipality String?
-  city        String?
-  street      String?
-  postalCode  String?     @map("postal_code")
-  isPrimary   Boolean     @default(false) @map("is_primary")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  city         String?
+  street       String?
+  postalCode   String?     @map("postal_code")
+  isPrimary    Boolean     @default(false) @map("is_primary")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -284,32 +307,32 @@ model CompanyAccountDefaults {
 // CHECK (is_customer = true OR is_vendor = true) is enforced via raw SQL
 // added to the initial migration — Prisma does not support CHECK constraints.
 model Contact {
-  id                String   @id @default(uuid()) @db.Uuid
-  companyId         String   @map("company_id") @db.Uuid
-  isCustomer        Boolean  @default(false) @map("is_customer")
-  isVendor          Boolean  @default(false) @map("is_vendor")
-  displayName       String   @map("display_name")
-  legalName         String?  @map("legal_name")
-  email             String?
-  phone             String?
-  taxId             String?  @map("tax_id")
-  paymentTermsDays  Int?     @map("payment_terms_days")
-  currency          String   @default("EUR")
-  country           String?
-  municipality      String?
-  city              String?
-  street            String?
-  postalCode        String?  @map("postal_code")
-  isActive          Boolean  @default(true) @map("is_active")
-  notes             String?
-  createdBy         String   @map("created_by") @db.Uuid
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  isCustomer       Boolean  @default(false) @map("is_customer")
+  isVendor         Boolean  @default(false) @map("is_vendor")
+  displayName      String   @map("display_name")
+  legalName        String?  @map("legal_name")
+  email            String?
+  phone            String?
+  taxId            String?  @map("tax_id")
+  paymentTermsDays Int?     @map("payment_terms_days")
+  currency         String   @default("EUR")
+  country          String?
+  municipality     String?
+  city             String?
+  street           String?
+  postalCode       String?  @map("postal_code")
+  isActive         Boolean  @default(true) @map("is_active")
+  notes            String?
+  createdBy        String   @map("created_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator          User               @relation("ContactCreatedBy", fields: [createdBy], references: [id])
-  invoices         Invoice[]
-  payments         Payment[]
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator           User               @relation("ContactCreatedBy", fields: [createdBy], references: [id])
+  invoices          Invoice[]
+  payments          Payment[]
   journalEntryLines JournalEntryLine[]
 
   @@index([companyId])
@@ -323,22 +346,22 @@ model Contact {
 // ---------------------------------------------------------------------------
 
 model ProductService {
-  id                String             @id @default(uuid()) @db.Uuid
-  companyId         String             @map("company_id") @db.Uuid
-  type              ProductServiceType
-  sku               String?
-  name              String
-  description       String?
-  unit              String?
-  salePrice         Decimal?           @map("sale_price") @db.Decimal(19, 4)
-  purchasePrice     Decimal?           @map("purchase_price") @db.Decimal(19, 4)
-  incomeAccountId   String?            @map("income_account_id") @db.Uuid
-  expenseAccountId  String?            @map("expense_account_id") @db.Uuid
-  defaultTaxRateId  String?            @map("default_tax_rate_id") @db.Uuid
-  isActive          Boolean            @default(true) @map("is_active")
-  createdBy         String             @map("created_by") @db.Uuid
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
+  id               String             @id @default(uuid()) @db.Uuid
+  companyId        String             @map("company_id") @db.Uuid
+  type             ProductServiceType
+  sku              String?
+  name             String
+  description      String?
+  unit             String?
+  salePrice        Decimal?           @map("sale_price") @db.Decimal(19, 4)
+  purchasePrice    Decimal?           @map("purchase_price") @db.Decimal(19, 4)
+  incomeAccountId  String?            @map("income_account_id") @db.Uuid
+  expenseAccountId String?            @map("expense_account_id") @db.Uuid
+  defaultTaxRateId String?            @map("default_tax_rate_id") @db.Uuid
+  isActive         Boolean            @default(true) @map("is_active")
+  createdBy        String             @map("created_by") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
 
   company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   creator        User          @relation("ProductCreatedBy", fields: [createdBy], references: [id])
@@ -371,9 +394,9 @@ model TaxRate {
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
 
-  company         Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company          Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productsServices ProductService[]
-  invoiceLines    InvoiceLine[]
+  invoiceLines     InvoiceLine[]
 
   @@index([companyId])
   @@map("tax_rates")
@@ -399,15 +422,15 @@ model Account {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  company             Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator             User                     @relation("AccountCreatedBy", fields: [createdBy], references: [id])
-  parentAccount       Account?                 @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
-  childAccounts       Account[]                @relation("AccountHierarchy")
-  journalEntryLines   JournalEntryLine[]
-  productsIncome      ProductService[]         @relation("ProductIncomeAccount")
-  productsExpense     ProductService[]         @relation("ProductExpenseAccount")
-  invoiceLinesIncome  InvoiceLine[]
-  companyDefaults     CompanyAccountDefaults[]
+  company            Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator            User                     @relation("AccountCreatedBy", fields: [createdBy], references: [id])
+  parentAccount      Account?                 @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts      Account[]                @relation("AccountHierarchy")
+  journalEntryLines  JournalEntryLine[]
+  productsIncome     ProductService[]         @relation("ProductIncomeAccount")
+  productsExpense    ProductService[]         @relation("ProductExpenseAccount")
+  invoiceLinesIncome InvoiceLine[]
+  companyDefaults    CompanyAccountDefaults[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -427,8 +450,8 @@ model AccountingPeriod {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  closedByUser  User?          @relation("PeriodClosedBy", fields: [closedBy], references: [id])
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  closedByUser   User?          @relation("PeriodClosedBy", fields: [closedBy], references: [id])
   journalEntries JournalEntry[]
 
   @@unique([companyId, fiscalYear, periodNumber])
@@ -440,36 +463,36 @@ model AccountingPeriod {
 // index (WHERE entry_number IS NOT NULL) via raw SQL in the initial migration —
 // Prisma does not support partial unique indexes.
 model JournalEntry {
-  id                  String             @id @default(uuid()) @db.Uuid
-  companyId           String             @map("company_id") @db.Uuid
-  entryNumber         String?            @map("entry_number") // null while DRAFT, set on POST
-  entryDate           DateTime           @map("entry_date") @db.Date
-  periodId            String?            @map("period_id") @db.Uuid // assigned on post
-  sourceDocumentType  String?            @map("source_document_type") // MANUAL | INVOICE | PAYMENT | INVOICE_VOID | PAYMENT_VOID
-  sourceDocumentId    String?            @map("source_document_id") @db.Uuid
-  memo                String?
-  status              JournalEntryStatus @default(DRAFT)
-  postedAt            DateTime?          @map("posted_at")
-  postedBy            String?            @map("posted_by") @db.Uuid
-  reversalOfEntryId   String?            @map("reversal_of_entry_id") @db.Uuid // set on reversal entries
-  reversedByEntryId   String?            @unique @map("reversed_by_entry_id") @db.Uuid // set on original when reversed
-  createdBy           String             @map("created_by") @db.Uuid
-  createdAt           DateTime           @default(now()) @map("created_at")
-  updatedAt           DateTime           @updatedAt @map("updated_at")
+  id                 String             @id @default(uuid()) @db.Uuid
+  companyId          String             @map("company_id") @db.Uuid
+  entryNumber        String?            @map("entry_number") // null while DRAFT, set on POST
+  entryDate          DateTime           @map("entry_date") @db.Date
+  periodId           String?            @map("period_id") @db.Uuid // assigned on post
+  sourceDocumentType String?            @map("source_document_type") // MANUAL | INVOICE | PAYMENT | INVOICE_VOID | PAYMENT_VOID
+  sourceDocumentId   String?            @map("source_document_id") @db.Uuid
+  memo               String?
+  status             JournalEntryStatus @default(DRAFT)
+  postedAt           DateTime?          @map("posted_at")
+  postedBy           String?            @map("posted_by") @db.Uuid
+  reversalOfEntryId  String?            @map("reversal_of_entry_id") @db.Uuid // set on reversal entries
+  reversedByEntryId  String?            @unique @map("reversed_by_entry_id") @db.Uuid // set on original when reversed
+  createdBy          String             @map("created_by") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator         User              @relation("JournalCreatedBy", fields: [createdBy], references: [id])
-  postedByUser    User?             @relation("JournalPostedBy", fields: [postedBy], references: [id])
-  period          AccountingPeriod? @relation(fields: [periodId], references: [id])
-  reversalOf      JournalEntry?     @relation("JournalReversal", fields: [reversalOfEntryId], references: [id])
-  reversalEntries JournalEntry[]    @relation("JournalReversal")
-  reversedBy      JournalEntry?     @relation("JournalReversedBy", fields: [reversedByEntryId], references: [id])
-  reversesEntry   JournalEntry?     @relation("JournalReversedBy")
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator         User               @relation("JournalCreatedBy", fields: [createdBy], references: [id])
+  postedByUser    User?              @relation("JournalPostedBy", fields: [postedBy], references: [id])
+  period          AccountingPeriod?  @relation(fields: [periodId], references: [id])
+  reversalOf      JournalEntry?      @relation("JournalReversal", fields: [reversalOfEntryId], references: [id])
+  reversalEntries JournalEntry[]     @relation("JournalReversal")
+  reversedBy      JournalEntry?      @relation("JournalReversedBy", fields: [reversedByEntryId], references: [id])
+  reversesEntry   JournalEntry?      @relation("JournalReversedBy")
   lines           JournalEntryLine[]
-  postedInvoices  Invoice[]         @relation("InvoicePostedEntry")
-  voidedInvoices  Invoice[]         @relation("InvoiceVoidedEntry")
-  postedPayments  Payment[]         @relation("PaymentPostedEntry")
-  voidedPayments  Payment[]         @relation("PaymentVoidedEntry")
+  postedInvoices  Invoice[]          @relation("InvoicePostedEntry")
+  voidedInvoices  Invoice[]          @relation("InvoiceVoidedEntry")
+  postedPayments  Payment[]          @relation("PaymentPostedEntry")
+  voidedPayments  Payment[]          @relation("PaymentVoidedEntry")
 
   @@index([companyId])
   @@index([companyId, entryDate, status])
@@ -504,34 +527,35 @@ model JournalEntryLine {
 // Unique constraint on (companyId, invoiceNumber) is implemented as a PARTIAL
 // index (WHERE invoice_number IS NOT NULL) via raw SQL in the initial migration.
 model Invoice {
-  id                     String        @id @default(uuid()) @db.Uuid
-  companyId              String        @map("company_id") @db.Uuid
-  invoiceNumber          String?       @map("invoice_number") // null while DRAFT, set on ISSUE
-  contactId              String        @map("contact_id") @db.Uuid
-  issueDate              DateTime      @map("issue_date") @db.Date
-  dueDate                DateTime      @map("due_date") @db.Date
-  currency               String        @default("EUR")
-  exchangeRate           Decimal       @default(1) @map("exchange_rate") @db.Decimal(19, 4)
-  subtotalAmount         Decimal       @default(0) @map("subtotal_amount") @db.Decimal(19, 4)
-  taxAmount              Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
-  totalAmount            Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
-  paidAmount             Decimal       @default(0) @map("paid_amount") @db.Decimal(19, 4)
-  balanceDue             Decimal       @default(0) @map("balance_due") @db.Decimal(19, 4)
-  status                 InvoiceStatus @default(DRAFT)
-  notes                  String?
-  postedJournalEntryId   String?       @map("posted_journal_entry_id") @db.Uuid
-  voidedJournalEntryId   String?       @map("voided_journal_entry_id") @db.Uuid
-  createdBy              String        @map("created_by") @db.Uuid
-  createdAt              DateTime      @default(now()) @map("created_at")
-  updatedAt              DateTime      @updatedAt @map("updated_at")
+  id                   String        @id @default(uuid()) @db.Uuid
+  companyId            String        @map("company_id") @db.Uuid
+  invoiceNumber        String?       @map("invoice_number") // null while DRAFT, set on ISSUE
+  contactId            String        @map("contact_id") @db.Uuid
+  issueDate            DateTime      @map("issue_date") @db.Date
+  dueDate              DateTime      @map("due_date") @db.Date
+  currency             String        @default("EUR")
+  exchangeRate         Decimal       @default(1) @map("exchange_rate") @db.Decimal(19, 4)
+  subtotalAmount       Decimal       @default(0) @map("subtotal_amount") @db.Decimal(19, 4)
+  taxAmount            Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount          Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
+  paidAmount           Decimal       @default(0) @map("paid_amount") @db.Decimal(19, 4)
+  balanceDue           Decimal       @default(0) @map("balance_due") @db.Decimal(19, 4)
+  status               InvoiceStatus @default(DRAFT)
+  notes                String?
+  postedJournalEntryId String?       @map("posted_journal_entry_id") @db.Uuid
+  voidedJournalEntryId String?       @map("voided_journal_entry_id") @db.Uuid
+  createdBy            String        @map("created_by") @db.Uuid
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
 
-  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator             User                @relation("InvoiceCreatedBy", fields: [createdBy], references: [id])
-  contact             Contact             @relation(fields: [contactId], references: [id])
-  postedJournalEntry  JournalEntry?       @relation("InvoicePostedEntry", fields: [postedJournalEntryId], references: [id])
-  voidedJournalEntry  JournalEntry?       @relation("InvoiceVoidedEntry", fields: [voidedJournalEntryId], references: [id])
-  lines               InvoiceLine[]
-  paymentAllocations  PaymentAllocation[]
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator            User                @relation("InvoiceCreatedBy", fields: [createdBy], references: [id])
+  contact            Contact             @relation(fields: [contactId], references: [id])
+  postedJournalEntry JournalEntry?       @relation("InvoicePostedEntry", fields: [postedJournalEntryId], references: [id])
+  voidedJournalEntry JournalEntry?       @relation("InvoiceVoidedEntry", fields: [voidedJournalEntryId], references: [id])
+  lines              InvoiceLine[]
+  paymentAllocations PaymentAllocation[]
+  fiscalCoupon       FiscalCoupon?
 
   @@index([companyId])
   @@index([companyId, status])
@@ -539,22 +563,22 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id              String        @id @default(uuid()) @db.Uuid
-  invoiceId       String        @map("invoice_id") @db.Uuid
-  lineNumber      Int           @map("line_number")
-  productServiceId String?      @map("product_service_id") @db.Uuid
-  description     String?
-  quantity        Decimal       @db.Decimal(19, 4)
-  unitPrice       Decimal       @map("unit_price") @db.Decimal(19, 4)
-  discountType    DiscountType? @map("discount_type")
-  discountValue   Decimal?      @map("discount_value") @db.Decimal(19, 4)
-  taxRateId       String?       @map("tax_rate_id") @db.Uuid
-  netAmount       Decimal       @default(0) @map("net_amount") @db.Decimal(19, 4)
-  taxAmount       Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
-  totalAmount     Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
-  incomeAccountId String?       @map("income_account_id") @db.Uuid
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id               String        @id @default(uuid()) @db.Uuid
+  invoiceId        String        @map("invoice_id") @db.Uuid
+  lineNumber       Int           @map("line_number")
+  productServiceId String?       @map("product_service_id") @db.Uuid
+  description      String?
+  quantity         Decimal       @db.Decimal(19, 4)
+  unitPrice        Decimal       @map("unit_price") @db.Decimal(19, 4)
+  discountType     DiscountType? @map("discount_type")
+  discountValue    Decimal?      @map("discount_value") @db.Decimal(19, 4)
+  taxRateId        String?       @map("tax_rate_id") @db.Uuid
+  netAmount        Decimal       @default(0) @map("net_amount") @db.Decimal(19, 4)
+  taxAmount        Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount      Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
+  incomeAccountId  String?       @map("income_account_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   invoice        Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   productService ProductService? @relation(fields: [productServiceId], references: [id])
@@ -570,30 +594,30 @@ model InvoiceLine {
 // ---------------------------------------------------------------------------
 
 model Payment {
-  id                     String        @id @default(uuid()) @db.Uuid
-  companyId              String        @map("company_id") @db.Uuid
-  contactId              String        @map("contact_id") @db.Uuid
-  paymentType            PaymentType   @map("payment_type")
-  paymentMethod          PaymentMethod @map("payment_method")
-  paymentDate            DateTime      @map("payment_date") @db.Date
-  referenceNumber        String?       @map("reference_number")
-  currency               String        @default("EUR")
-  exchangeRate           Decimal       @default(1) @map("exchange_rate") @db.Decimal(19, 4)
-  totalAmount            Decimal       @map("total_amount") @db.Decimal(19, 4)
-  status                 PaymentStatus @default(RECORDED)
-  notes                  String?
-  postedJournalEntryId   String?       @map("posted_journal_entry_id") @db.Uuid
-  voidedJournalEntryId   String?       @map("voided_journal_entry_id") @db.Uuid
-  createdBy              String        @map("created_by") @db.Uuid
-  createdAt              DateTime      @default(now()) @map("created_at")
-  updatedAt              DateTime      @updatedAt @map("updated_at")
+  id                   String        @id @default(uuid()) @db.Uuid
+  companyId            String        @map("company_id") @db.Uuid
+  contactId            String        @map("contact_id") @db.Uuid
+  paymentType          PaymentType   @map("payment_type")
+  paymentMethod        PaymentMethod @map("payment_method")
+  paymentDate          DateTime      @map("payment_date") @db.Date
+  referenceNumber      String?       @map("reference_number")
+  currency             String        @default("EUR")
+  exchangeRate         Decimal       @default(1) @map("exchange_rate") @db.Decimal(19, 4)
+  totalAmount          Decimal       @map("total_amount") @db.Decimal(19, 4)
+  status               PaymentStatus @default(RECORDED)
+  notes                String?
+  postedJournalEntryId String?       @map("posted_journal_entry_id") @db.Uuid
+  voidedJournalEntryId String?       @map("voided_journal_entry_id") @db.Uuid
+  createdBy            String        @map("created_by") @db.Uuid
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
 
-  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator             User                @relation("PaymentCreatedBy", fields: [createdBy], references: [id])
-  contact             Contact             @relation(fields: [contactId], references: [id])
-  postedJournalEntry  JournalEntry?       @relation("PaymentPostedEntry", fields: [postedJournalEntryId], references: [id])
-  voidedJournalEntry  JournalEntry?       @relation("PaymentVoidedEntry", fields: [voidedJournalEntryId], references: [id])
-  allocations         PaymentAllocation[]
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator            User                @relation("PaymentCreatedBy", fields: [createdBy], references: [id])
+  contact            Contact             @relation(fields: [contactId], references: [id])
+  postedJournalEntry JournalEntry?       @relation("PaymentPostedEntry", fields: [postedJournalEntryId], references: [id])
+  voidedJournalEntry JournalEntry?       @relation("PaymentVoidedEntry", fields: [voidedJournalEntryId], references: [id])
+  allocations        PaymentAllocation[]
 
   @@index([companyId])
   @@index([companyId, status])
@@ -601,15 +625,15 @@ model Payment {
 }
 
 model PaymentAllocation {
-  id              String   @id @default(uuid()) @db.Uuid
-  paymentId       String   @map("payment_id") @db.Uuid
-  invoiceId       String   @map("invoice_id") @db.Uuid
-  allocatedAmount Decimal  @map("allocated_amount") @db.Decimal(19, 4)
-  allocationDate  DateTime @map("allocation_date") @db.Date
-  isVoided        Boolean  @default(false) @map("is_voided")
+  id              String    @id @default(uuid()) @db.Uuid
+  paymentId       String    @map("payment_id") @db.Uuid
+  invoiceId       String    @map("invoice_id") @db.Uuid
+  allocatedAmount Decimal   @map("allocated_amount") @db.Decimal(19, 4)
+  allocationDate  DateTime  @map("allocation_date") @db.Date
+  isVoided        Boolean   @default(false) @map("is_voided")
   voidedAt        DateTime? @map("voided_at")
-  createdBy       String   @map("created_by") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   invoice Invoice @relation(fields: [invoiceId], references: [id])
@@ -665,4 +689,58 @@ model AuditLog {
   @@index([companyId])
   @@index([companyId, entityType, entityId])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Fiscalization (Kosovo / ATK) — see FISCALIZATION.md
+// ---------------------------------------------------------------------------
+
+model CompanyFiscalConfig {
+  id                  String         @id @default(uuid()) @db.Uuid
+  companyId           String         @unique @map("company_id") @db.Uuid
+  enabled             Boolean        @default(false)
+  provider            FiscalProvider @default(NONE)
+  environment         String         @default("TEST") // TEST | PRODUCTION
+  businessUnitCode    String?        @map("business_unit_code") // POS/unit code registered with ATK
+  operatorCode        String?        @map("operator_code")
+  efsSoftwareCode     String?        @map("efs_software_code") // certified EFS identifier notified to ATK
+  efsMaintainer       String?        @map("efs_maintainer")
+  verificationBaseUrl String?        @map("verification_base_url") // ATK QR verification host
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_fiscal_configs")
+}
+
+model FiscalCoupon {
+  id               String             @id @default(uuid()) @db.Uuid
+  companyId        String             @map("company_id") @db.Uuid
+  invoiceId        String             @unique @map("invoice_id") @db.Uuid
+  status           FiscalCouponStatus @default(PENDING)
+  couponType       FiscalCouponType   @default(SALE) @map("coupon_type")
+  provider         FiscalProvider     @default(NONE)
+  totalAmount      Decimal            @default(0) @map("total_amount") @db.Decimal(19, 4)
+  taxAmount        Decimal            @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  currency         String             @default("EUR")
+  fcuin            String?            @map("fcuin") // Fiscal Coupon Unique Identification Number
+  verificationUrl  String?            @map("verification_url")
+  qrPayload        String?            @map("qr_payload")
+  taxBlockCode     String?            @map("tax_block_code")
+  businessUnitCode String?            @map("business_unit_code")
+  operatorCode     String?            @map("operator_code")
+  fiscalizedAt     DateTime?          @map("fiscalized_at")
+  errorMessage     String?            @map("error_message")
+  requestPayload   Json?              @map("request_payload")
+  responsePayload  Json?              @map("response_payload")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("fiscal_coupons")
 }

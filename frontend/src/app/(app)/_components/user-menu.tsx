@@ -8,6 +8,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { useT } from "@/i18n/client";
 
 interface Props {
   firstName: string;
@@ -17,6 +19,7 @@ interface Props {
 
 export function UserMenu({ firstName, lastName, email }: Props) {
   const router = useRouter();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -30,7 +33,7 @@ export function UserMenu({ firstName, lastName, email }: Props) {
   }, [open]);
 
   const initials = ((firstName[0] ?? "") + (lastName[0] ?? "")).toUpperCase() || "U";
-  const displayName = `${firstName} ${lastName}`.trim() || email || "Account";
+  const displayName = `${firstName} ${lastName}`.trim() || email || t("userMenu.account");
 
   const logout = async () => {
     setOpen(false);
@@ -45,7 +48,7 @@ export function UserMenu({ firstName, lastName, email }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-full bg-linear-to-br from-sky-500 to-teal-400 px-1 py-1 text-sm font-medium text-white shadow-sm transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1"
-        aria-label="Open user menu"
+        aria-label={t("userMenu.openMenu")}
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-xs font-semibold">
           {initials}
@@ -59,13 +62,24 @@ export function UserMenu({ firstName, lastName, email }: Props) {
             <div className="truncate text-xs text-slate-500 dark:text-slate-400">{email}</div>
           </div>
           <div className="py-1">
-            <MenuItem icon={UserCircleIcon} label="Profile" disabled hint="coming soon" />
+            <MenuItem
+              icon={UserCircleIcon}
+              label={t("userMenu.profile")}
+              disabled
+              hint={t("common.comingSoon")}
+            />
             <MenuItem
               icon={Cog6ToothIcon}
-              label="Company settings"
+              label={t("userMenu.companySettings")}
               href="/settings"
               onSelect={() => setOpen(false)}
             />
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-2 dark:border-slate-800">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              {t("switcher.label")}
+            </span>
+            <LocaleSwitcher />
           </div>
           <div className="border-t border-slate-100 py-1 dark:border-slate-800">
             <button
@@ -74,7 +88,7 @@ export function UserMenu({ firstName, lastName, email }: Props) {
               className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
             >
               <ArrowRightOnRectangleIcon className="h-4 w-4" />
-              Sign out
+              {t("userMenu.signOut")}
             </button>
           </div>
         </div>

@@ -2,8 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
+import { useT } from "@/i18n/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,21 +28,26 @@ const TYPE_VALUES = PRODUCT_SERVICE_TYPES.map((t) => t.value) as [
   ...ProductServiceType[],
 ];
 
-const Schema = z.object({
-  name: z.string().min(1, "Required").max(255),
-  type: z.enum(TYPE_VALUES),
-  sku: z.string().max(50).optional().or(z.literal("")),
-  description: z.string().max(1000).optional().or(z.literal("")),
-  unit: z.string().max(20).optional().or(z.literal("")),
-  salePrice: z.coerce.number().min(0).optional(),
-  purchasePrice: z.coerce.number().min(0).optional(),
-  incomeAccountId: z.string().uuid().optional().or(z.literal("")),
-  expenseAccountId: z.string().uuid().optional().or(z.literal("")),
-  defaultTaxRateId: z.string().uuid().optional().or(z.literal("")),
-});
-type Values = z.infer<typeof Schema>;
+// Schema factory so user-facing messages can be translated at render time.
+// Value tuple (TYPE_VALUES) references enum `.value`s, kept at module scope.
+function makeSchema(t: (key: string) => string) {
+  return z.object({
+    name: z.string().min(1, t("common.required")).max(255),
+    type: z.enum(TYPE_VALUES),
+    sku: z.string().max(50).optional().or(z.literal("")),
+    description: z.string().max(1000).optional().or(z.literal("")),
+    unit: z.string().max(20).optional().or(z.literal("")),
+    salePrice: z.coerce.number().min(0).optional(),
+    purchasePrice: z.coerce.number().min(0).optional(),
+    incomeAccountId: z.string().uuid().optional().or(z.literal("")),
+    expenseAccountId: z.string().uuid().optional().or(z.literal("")),
+    defaultTaxRateId: z.string().uuid().optional().or(z.literal("")),
+  });
+}
+type Values = z.infer<ReturnType<typeof makeSchema>>;
 
 export function CatalogClient() {
+  const t = useT();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "PRODUCT" | "SERVICE">("all");
@@ -64,10 +70,10 @@ export function CatalogClient() {
         <CardHeader>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[200px]">
-              <Label htmlFor="search">Search</Label>
+              <Label htmlFor="search">{t("common.search")}</Label>
               <Input
                 id="search"
-                placeholder="Name, SKU, description…"
+                placeholder={t("catalog.searchPlaceholder")}
                 value={search}
                 onChange={(e) => {
                   setPage(1);
@@ -76,7 +82,7 @@ export function CatalogClient() {
               />
             </div>
             <div>
-              <Label htmlFor="type">Type</Label>
+              <Label htmlFor="type">{t("common.type")}</Label>
               <Select
                 id="type"
                 value={typeFilter}
@@ -85,9 +91,9 @@ export function CatalogClient() {
                   setTypeFilter(e.target.value as never);
                 }}
               >
-                <option value="all">All</option>
-                <option value="PRODUCT">Products</option>
-                <option value="SERVICE">Services</option>
+                <option value="all">{t("common.all")}</option>
+                <option value="PRODUCT">{t("catalog.filterProducts")}</option>
+                <option value="SERVICE">{t("catalog.filterServices")}</option>
               </Select>
             </div>
             <label className="mb-2 flex items-center gap-2 text-sm">
@@ -97,7 +103,7 @@ export function CatalogClient() {
                 checked={includeInactive}
                 onChange={(e) => setIncludeInactive(e.target.checked)}
               />
-              Include inactive
+              {t("catalog.includeInactive")}
             </label>
             <Button
               variant="secondary"
@@ -106,7 +112,7 @@ export function CatalogClient() {
                 setShowNew((v) => !v);
               }}
             >
-              {showNew ? "Cancel" : "+ New item"}
+              {showNew ? t("common.cancel") : t("catalog.newItemButton")}
             </Button>
           </div>
         </CardHeader>
@@ -121,24 +127,24 @@ export function CatalogClient() {
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <tr className="text-left">
-                <Th>Name</Th>
-                <Th>Type</Th>
-                <Th>SKU</Th>
-                <Th className="text-right">Sale price</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>{t("common.name")}</Th>
+                <Th>{t("common.type")}</Th>
+                <Th>{t("catalog.sku")}</Th>
+                <Th className="text-right">{t("catalog.salePrice")}</Th>
+                <Th className="text-right">{t("common.actions")}</Th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
-                    Loading…
+                    {t("common.loading")}
                   </td>
                 </tr>
               ) : !data || data.data.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
-                    No catalog items.
+                    {t("catalog.empty")}
                   </td>
                 </tr>
               ) : (
@@ -160,18 +166,18 @@ export function CatalogClient() {
                     >
                       <Td>
                         <div className="font-medium">{p.name}</div>
-                        {!p.isActive ? <Badge variant="warning">Inactive</Badge> : null}
+                        {!p.isActive ? <Badge variant="warning">{t("catalog.badgeInactive")}</Badge> : null}
                       </Td>
                       <Td>
                         <Badge variant={p.type === "PRODUCT" ? "default" : "outline"}>
-                          {p.type}
+                          {t(`enums.productServiceType.${p.type}`)}
                         </Badge>
                       </Td>
                       <Td className="font-mono text-xs">{p.sku ?? "—"}</Td>
                       <Td className="text-right">{p.salePrice ? `${p.salePrice}` : "—"}</Td>
                       <Td className="text-right">
                         <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>
-                          Edit
+                          {t("catalog.edit")}
                         </Button>
                       </Td>
                     </tr>
@@ -186,7 +192,11 @@ export function CatalogClient() {
       {data && data.totalPages > 1 ? (
         <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
           <span>
-            Page {data.page} of {data.totalPages} · {data.total} total
+            {t("common.pagination", {
+              page: data.page,
+              totalPages: data.totalPages,
+              total: data.total,
+            })}
           </span>
           <div className="flex gap-2">
             <Button
@@ -195,7 +205,7 @@ export function CatalogClient() {
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
             >
-              Previous
+              {t("common.previous")}
             </Button>
             <Button
               size="sm"
@@ -203,7 +213,7 @@ export function CatalogClient() {
               disabled={page >= data.totalPages}
               onClick={() => setPage(page + 1)}
             >
-              Next
+              {t("common.next")}
             </Button>
           </div>
         </div>
@@ -234,6 +244,7 @@ function ItemForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const create = useCreateProductService();
   const update = useUpdateProductService(initial?.id ?? "");
   const deactivate = useDeactivateProductService();
@@ -241,12 +252,14 @@ function ItemForm({
   const { data: taxRates } = useTaxRates();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const Schema = makeSchema(t);
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
-    resolver: zodResolver(Schema),
+    resolver: zodResolver(Schema) as Resolver<Values>,
     defaultValues: {
       name: initial?.name ?? "",
       type: (initial?.type ?? "PRODUCT") as ProductServiceType,
@@ -271,43 +284,43 @@ function ItemForm({
       else await create.mutateAsync(payload as never);
       onDone();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("catalog.saveFailed"));
     }
   });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{initial ? "Edit item" : "New catalog item"}</CardTitle>
+        <CardTitle>{initial ? t("catalog.editItem") : t("catalog.newItem")}</CardTitle>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">{t("catalog.nameLabel")}</Label>
               <Input id="name" invalid={!!errors.name} {...register("name")} />
               <FormError message={errors.name?.message} />
             </div>
             <div>
-              <Label htmlFor="type">Type *</Label>
+              <Label htmlFor="type">{t("catalog.typeLabel")}</Label>
               <Select id="type" {...register("type")}>
-                {PRODUCT_SERVICE_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {PRODUCT_SERVICE_TYPES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(o.label)}
                   </option>
                 ))}
               </Select>
             </div>
             <div>
-              <Label htmlFor="sku">SKU</Label>
+              <Label htmlFor="sku">{t("catalog.sku")}</Label>
               <Input id="sku" {...register("sku")} />
             </div>
             <div>
-              <Label htmlFor="unit">Unit (e.g. hour, kg)</Label>
+              <Label htmlFor="unit">{t("catalog.unit")}</Label>
               <Input id="unit" {...register("unit")} />
             </div>
             <div>
-              <Label htmlFor="salePrice">Sale price</Label>
+              <Label htmlFor="salePrice">{t("catalog.salePrice")}</Label>
               <Input
                 id="salePrice"
                 type="number"
@@ -319,7 +332,7 @@ function ItemForm({
               />
             </div>
             <div>
-              <Label htmlFor="purchasePrice">Purchase price</Label>
+              <Label htmlFor="purchasePrice">{t("catalog.purchasePrice")}</Label>
               <Input
                 id="purchasePrice"
                 type="number"
@@ -331,7 +344,7 @@ function ItemForm({
               />
             </div>
             <div>
-              <Label htmlFor="incomeAccountId">Income account</Label>
+              <Label htmlFor="incomeAccountId">{t("catalog.incomeAccount")}</Label>
               <Select id="incomeAccountId" {...register("incomeAccountId")}>
                 <option value="">—</option>
                 {(accounts ?? [])
@@ -344,7 +357,7 @@ function ItemForm({
               </Select>
             </div>
             <div>
-              <Label htmlFor="expenseAccountId">Expense account</Label>
+              <Label htmlFor="expenseAccountId">{t("catalog.expenseAccount")}</Label>
               <Select id="expenseAccountId" {...register("expenseAccountId")}>
                 <option value="">—</option>
                 {(accounts ?? [])
@@ -357,7 +370,7 @@ function ItemForm({
               </Select>
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="defaultTaxRateId">Default tax rate</Label>
+              <Label htmlFor="defaultTaxRateId">{t("catalog.defaultTaxRate")}</Label>
               <Select id="defaultTaxRateId" {...register("defaultTaxRateId")}>
                 <option value="">—</option>
                 {(taxRates ?? []).map((t) => (
@@ -368,7 +381,7 @@ function ItemForm({
               </Select>
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t("catalog.descriptionLabel")}</Label>
               <Textarea id="description" rows={2} {...register("description")} />
             </div>
           </div>
@@ -377,24 +390,24 @@ function ItemForm({
 
           {initial && initial.isActive ? (
             <div className="flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900">
-              <span className="text-zinc-600 dark:text-zinc-400">Deactivate this item.</span>
+              <span className="text-zinc-600 dark:text-zinc-400">{t("catalog.deactivateHint")}</span>
               <Button
                 type="button"
                 size="sm"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Deactivate this catalog item?")) return;
+                  if (!confirm(t("catalog.deactivateConfirm"))) return;
                   await deactivate.mutateAsync(initial.id);
                   onDone();
                 }}
               >
-                Deactivate
+                {t("catalog.deactivate")}
               </Button>
             </div>
           ) : null}
           {initial && !initial.isActive ? (
             <div className="flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900">
-              <span className="text-zinc-600 dark:text-zinc-400">Currently inactive.</span>
+              <span className="text-zinc-600 dark:text-zinc-400">{t("catalog.currentlyInactive")}</span>
               <Button
                 type="button"
                 size="sm"
@@ -404,17 +417,17 @@ function ItemForm({
                   onDone();
                 }}
               >
-                Reactivate
+                {t("catalog.reactivate")}
               </Button>
             </div>
           ) : null}
         </CardContent>
         <div className="flex justify-end gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting || create.isPending || update.isPending}>
-            {initial ? "Save" : "Create"}
+            {initial ? t("common.save") : t("catalog.create")}
           </Button>
         </div>
       </form>

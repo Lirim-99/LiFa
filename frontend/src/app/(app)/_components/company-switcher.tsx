@@ -4,6 +4,7 @@ import { BuildingOffice2Icon, ChevronUpDownIcon, PlusIcon } from "@heroicons/rea
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { useT } from "@/i18n/client";
 import { cn } from "@/lib/cn";
 import { useSwitchCompany } from "@/lib/queries/companies";
 import type { UserCompanyAccessSummary } from "@/lib/types";
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function CompanySwitcher({ companies, activeCompanyId }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const switchCompany = useSwitchCompany();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -36,7 +38,7 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
         className="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:hover:bg-sky-950"
       >
         <PlusIcon className="h-3.5 w-3.5" />
-        Create your first company
+        {t("companySwitcher.createFirst")}
       </Link>
     );
   }
@@ -72,7 +74,7 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
       {open ? (
         <div className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <div className="border-b border-slate-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:text-slate-500">
-            Your companies
+            {t("companySwitcher.yourCompanies")}
           </div>
           <ul className="max-h-72 overflow-y-auto py-1">
             {companies.map((c) => {
@@ -113,7 +115,7 @@ export function CompanySwitcher({ companies, activeCompanyId }: Props) {
               className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-sky-700 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-950/40"
             >
               <PlusIcon className="h-4 w-4" />
-              Add another company
+              {t("companySwitcher.addAnother")}
             </Link>
           </div>
         </div>

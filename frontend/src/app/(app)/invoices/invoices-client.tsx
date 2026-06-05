@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useT } from "@/i18n/client";
 import { useInvoices } from "@/lib/queries/invoices";
 import { INVOICE_STATUSES, type Invoice, type InvoiceStatus } from "@/lib/types";
 import { InvoiceEditor } from "./invoice-editor";
@@ -22,6 +23,7 @@ const STATUS_VARIANT: Record<
 };
 
 export function InvoicesClient() {
+  const t = useT();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function InvoicesClient() {
         <CardHeader>
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t("common.status")}</Label>
               <Select
                 id="status"
                 value={status}
@@ -49,10 +51,10 @@ export function InvoicesClient() {
                   setStatus(e.target.value);
                 }}
               >
-                <option value="">All</option>
+                <option value="">{t("common.all")}</option>
                 {INVOICE_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
-                    {s.label}
+                    {t(s.label)}
                   </option>
                 ))}
               </Select>
@@ -65,7 +67,7 @@ export function InvoicesClient() {
                   setShowNew((v) => !v);
                 }}
               >
-                {showNew ? "Cancel" : "+ New invoice"}
+                {showNew ? t("common.cancel") : t("invoices.newInvoice")}
               </Button>
             </div>
           </div>
@@ -89,26 +91,26 @@ export function InvoicesClient() {
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <tr className="text-left">
-                <Th>Number</Th>
-                <Th>Issue date</Th>
-                <Th>Customer</Th>
-                <Th className="text-right">Total</Th>
-                <Th className="text-right">Balance</Th>
-                <Th>Status</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>{t("invoices.number")}</Th>
+                <Th>{t("invoices.issueDate")}</Th>
+                <Th>{t("invoices.customer")}</Th>
+                <Th className="text-right">{t("invoices.total")}</Th>
+                <Th className="text-right">{t("invoices.balance")}</Th>
+                <Th>{t("common.status")}</Th>
+                <Th className="text-right">{t("common.actions")}</Th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
-                    Loading…
+                    {t("common.loading")}
                   </td>
                 </tr>
               ) : !data || data.data.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
-                    No invoices.
+                    {t("invoices.empty")}
                   </td>
                 </tr>
               ) : (
@@ -124,7 +126,11 @@ export function InvoicesClient() {
       {data && data.totalPages > 1 ? (
         <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
           <span>
-            Page {data.page} of {data.totalPages} · {data.total} total
+            {t("common.pagination", {
+              page: data.page,
+              totalPages: data.totalPages,
+              total: data.total,
+            })}
           </span>
           <div className="flex gap-2">
             <Button
@@ -133,7 +139,7 @@ export function InvoicesClient() {
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
             >
-              Previous
+              {t("common.previous")}
             </Button>
             <Button
               size="sm"
@@ -141,7 +147,7 @@ export function InvoicesClient() {
               disabled={page >= data.totalPages}
               onClick={() => setPage(page + 1)}
             >
-              Next
+              {t("common.next")}
             </Button>
           </div>
         </div>
@@ -151,21 +157,22 @@ export function InvoicesClient() {
 }
 
 function Row({ inv, onOpen }: { inv: Invoice; onOpen: () => void }) {
+  const t = useT();
   return (
     <tr className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
       <Td className="font-mono text-xs">
-        {inv.invoiceNumber ?? <span className="text-zinc-400">draft</span>}
+        {inv.invoiceNumber ?? <span className="text-zinc-400">{t("invoices.draft")}</span>}
       </Td>
       <Td>{inv.issueDate.slice(0, 10)}</Td>
       <Td>{inv.contact?.displayName ?? <span className="text-zinc-400">—</span>}</Td>
       <Td className="text-right font-mono text-xs">{Number(inv.totalAmount).toFixed(2)}</Td>
       <Td className="text-right font-mono text-xs">{Number(inv.balanceDue).toFixed(2)}</Td>
       <Td>
-        <Badge variant={STATUS_VARIANT[inv.status]}>{inv.status}</Badge>
+        <Badge variant={STATUS_VARIANT[inv.status]}>{t(`enums.invoiceStatus.${inv.status}`)}</Badge>
       </Td>
       <Td className="text-right">
         <Button size="sm" variant="ghost" onClick={onOpen}>
-          Open
+          {t("common.open")}
         </Button>
       </Td>
     </tr>

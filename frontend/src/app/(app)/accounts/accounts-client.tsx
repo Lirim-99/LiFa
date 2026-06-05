@@ -2,8 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
+import { useT } from "@/i18n/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,7 @@ const Schema = z.object({
 type Values = z.infer<typeof Schema>;
 
 export function AccountsClient() {
+  const t = useT();
   const { data, isLoading } = useAccounts();
   const [showNew, setShowNew] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
@@ -56,16 +58,16 @@ export function AccountsClient() {
         <CardHeader>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <Label htmlFor="typeFilter">Filter by type</Label>
+              <Label htmlFor="typeFilter">{t("accounts.filterByType")}</Label>
               <Select
                 id="typeFilter"
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value as never)}
               >
-                <option value="all">All</option>
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                <option value="all">{t("common.all")}</option>
+                {ACCOUNT_TYPES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(o.label)}
                   </option>
                 ))}
               </Select>
@@ -77,7 +79,7 @@ export function AccountsClient() {
                 setShowNew((v) => !v);
               }}
             >
-              {showNew ? "Cancel" : "+ New account"}
+              {showNew ? t("common.cancel") : t("accounts.newAccountButton")}
             </Button>
           </div>
         </CardHeader>
@@ -96,24 +98,24 @@ export function AccountsClient() {
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <tr className="text-left">
-                <Th>Code</Th>
-                <Th>Name</Th>
-                <Th>Type</Th>
-                <Th>Normal balance</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>{t("common.code")}</Th>
+                <Th>{t("common.name")}</Th>
+                <Th>{t("common.type")}</Th>
+                <Th>{t("accounts.normalBalance")}</Th>
+                <Th className="text-right">{t("common.actions")}</Th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
-                    Loading…
+                    {t("common.loading")}
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
-                    No accounts.
+                    {t("accounts.empty")}
                   </td>
                 </tr>
               ) : (
@@ -138,16 +140,16 @@ export function AccountsClient() {
                       <Td>
                         <div className="font-medium">{a.name}</div>
                         <div className="flex gap-1 pt-1">
-                          {a.isSystem ? <Badge variant="warning">System</Badge> : null}
-                          {!a.isPostable ? <Badge variant="outline">Roll-up</Badge> : null}
-                          {!a.isActive ? <Badge>Inactive</Badge> : null}
+                          {a.isSystem ? <Badge variant="warning">{t("accounts.badgeSystem")}</Badge> : null}
+                          {!a.isPostable ? <Badge variant="outline">{t("accounts.badgeRollUp")}</Badge> : null}
+                          {!a.isActive ? <Badge>{t("accounts.badgeInactive")}</Badge> : null}
                         </div>
                       </Td>
-                      <Td>{a.accountType}</Td>
-                      <Td>{a.normalBalance}</Td>
+                      <Td>{t(`enums.accountType.${a.accountType}`)}</Td>
+                      <Td>{t(`enums.normalBalance.${a.normalBalance}`)}</Td>
                       <Td className="text-right">
                         <Button size="sm" variant="ghost" onClick={() => setEditing(a)}>
-                          Edit
+                          {t("accounts.edit")}
                         </Button>
                       </Td>
                     </tr>
@@ -186,6 +188,7 @@ function AccountForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const create = useCreateAccount();
   const update = useUpdateAccount(initial?.id ?? "");
   const deactivate = useDeactivateAccount();
@@ -196,7 +199,7 @@ function AccountForm({
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
-    resolver: zodResolver(Schema),
+    resolver: zodResolver(Schema) as Resolver<Values>,
     defaultValues: {
       code: initial?.code ?? "",
       name: initial?.name ?? "",
@@ -218,56 +221,56 @@ function AccountForm({
       else await create.mutateAsync(payload as never);
       onDone();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("accounts.saveFailed"));
     }
   });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{initial ? "Edit account" : "New account"}</CardTitle>
+        <CardTitle>{initial ? t("accounts.editAccount") : t("accounts.newAccount")}</CardTitle>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="code">Code *</Label>
+              <Label htmlFor="code">{t("accounts.codeLabel")}</Label>
               <Input id="code" invalid={!!errors.code} {...register("code")} />
               <FormError message={errors.code?.message} />
             </div>
             <div>
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">{t("accounts.nameLabel")}</Label>
               <Input id="name" invalid={!!errors.name} {...register("name")} />
               <FormError message={errors.name?.message} />
             </div>
             <div>
-              <Label htmlFor="accountType">Type *</Label>
+              <Label htmlFor="accountType">{t("accounts.typeLabel")}</Label>
               <Select id="accountType" {...register("accountType")}>
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {ACCOUNT_TYPES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(o.label)}
                   </option>
                 ))}
               </Select>
             </div>
             <div>
-              <Label htmlFor="normalBalance">Normal balance *</Label>
+              <Label htmlFor="normalBalance">{t("accounts.normalBalanceLabel")}</Label>
               <Select id="normalBalance" {...register("normalBalance")}>
-                {NORMAL_BALANCES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {NORMAL_BALANCES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(o.label)}
                   </option>
                 ))}
               </Select>
             </div>
             <div>
-              <Label htmlFor="accountSubtype">Subtype</Label>
+              <Label htmlFor="accountSubtype">{t("accounts.subtype")}</Label>
               <Input id="accountSubtype" {...register("accountSubtype")} />
             </div>
             <div>
-              <Label htmlFor="parentAccountId">Parent account</Label>
+              <Label htmlFor="parentAccountId">{t("accounts.parentAccount")}</Label>
               <Select id="parentAccountId" {...register("parentAccountId")}>
-                <option value="">— none —</option>
+                <option value="">{t("accounts.parentNone")}</option>
                 {existingAccounts
                   .filter((a) => a.id !== initial?.id)
                   .map((a) => (
@@ -284,7 +287,7 @@ function AccountForm({
                 className="h-4 w-4"
                 {...register("isPostable")}
               />
-              <Label htmlFor="isPostable">Postable (uncheck for roll-up)</Label>
+              <Label htmlFor="isPostable">{t("accounts.postable")}</Label>
             </div>
           </div>
 
@@ -293,38 +296,40 @@ function AccountForm({
           {initial && !initial.isSystem ? (
             <div className="flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900">
               <span className="text-zinc-600 dark:text-zinc-400">
-                Deactivate this account. Refused if posted journal lines reference it.
+                {t("accounts.deactivateHint")}
               </span>
               <Button
                 type="button"
                 size="sm"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Deactivate this account?")) return;
+                  if (!confirm(t("accounts.deactivateConfirm"))) return;
                   try {
                     await deactivate.mutateAsync(initial.id);
                     onDone();
                   } catch (err) {
-                    setSubmitError(err instanceof Error ? err.message : "Failed to deactivate");
+                    setSubmitError(
+                      err instanceof Error ? err.message : t("accounts.deactivateFailed"),
+                    );
                   }
                 }}
               >
-                Deactivate
+                {t("accounts.deactivate")}
               </Button>
             </div>
           ) : null}
           {initial?.isSystem ? (
             <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-              This is a system account. It cannot be deactivated.
+              {t("accounts.systemAccountNotice")}
             </div>
           ) : null}
         </CardContent>
         <div className="flex justify-end gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting || create.isPending || update.isPending}>
-            {initial ? "Save" : "Create"}
+            {initial ? t("common.save") : t("accounts.create")}
           </Button>
         </div>
       </form>

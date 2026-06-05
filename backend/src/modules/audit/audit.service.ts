@@ -16,6 +16,7 @@ export const AuditEntityType = {
   PAYMENT: "PAYMENT",
   JOURNAL_ENTRY: "JOURNAL_ENTRY",
   USER_ACCESS: "USER_ACCESS",
+  FISCAL_COUPON: "FISCAL_COUPON",
 } as const;
 
 export const AuditAction = {
@@ -25,6 +26,7 @@ export const AuditAction = {
   ISSUED: "ISSUED",
   VOIDED: "VOIDED",
   POSTED: "POSTED",
+  FISCALIZED: "FISCALIZED",
   ACCESS_GRANTED: "ACCESS_GRANTED",
   ROLE_CHANGED: "ROLE_CHANGED",
   ACCESS_REVOKED: "ACCESS_REVOKED",

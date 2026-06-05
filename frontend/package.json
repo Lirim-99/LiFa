@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "i18n:translate": "node scripts/i18n-translate.mjs",
+    "i18n:check": "node scripts/i18n-translate.mjs --check"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

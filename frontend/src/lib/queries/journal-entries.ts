@@ -6,7 +6,7 @@ import type { JournalEntry, PaginatedResponse } from "@/lib/types";
 
 export const jeKeys = {
   all: ["journal-entries"] as const,
-  list: (params: Record<string, unknown>) => ["journal-entries", "list", params] as const,
+  list: (params: JournalEntryListParams) => ["journal-entries", "list", params] as const,
   detail: (id: string) => ["journal-entries", "detail", id] as const,
 };
 

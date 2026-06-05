@@ -11,6 +11,7 @@ import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useT } from "@/i18n/client";
 import {
   useAddCompanyUser,
   useCompanyUsers,
@@ -27,6 +28,7 @@ const AddSchema = z.object({
 type AddValues = z.infer<typeof AddSchema>;
 
 export function UsersClient({ companyId }: { companyId: string }) {
+  const t = useT();
   const { data: users, isLoading } = useCompanyUsers(companyId);
   const add = useAddCompanyUser(companyId);
   const update = useUpdateCompanyUser(companyId);
@@ -51,7 +53,7 @@ export function UsersClient({ companyId }: { companyId: string }) {
       reset();
       setShowAdd(false);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to add user");
+      setActionError(err instanceof Error ? err.message : t("users.failedToAdd"));
     }
   });
 
@@ -59,28 +61,26 @@ export function UsersClient({ companyId }: { companyId: string }) {
     <div className="space-y-4">
       <div className="flex justify-end">
         <Button variant="secondary" onClick={() => setShowAdd((v) => !v)}>
-          {showAdd ? "Cancel" : "+ Invite user"}
+          {showAdd ? t("common.cancel") : t("users.inviteUserButton")}
         </Button>
       </div>
 
       {showAdd ? (
         <Card>
           <CardHeader>
-            <CardTitle>Invite user</CardTitle>
+            <CardTitle>{t("users.inviteUser")}</CardTitle>
           </CardHeader>
           <form onSubmit={onAdd} noValidate>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="email">Email *</Label>
+                  <Label htmlFor="email">{t("users.emailLabel")}</Label>
                   <Input id="email" type="email" invalid={!!errors.email} {...register("email")} />
                   <FormError message={errors.email?.message} />
-                  <p className="mt-1 text-xs text-zinc-500">
-                    User must already have a LiFa account.
-                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">{t("users.accountHelper")}</p>
                 </div>
                 <div>
-                  <Label htmlFor="roleCode">Role *</Label>
+                  <Label htmlFor="roleCode">{t("users.roleLabel")}</Label>
                   <Select id="roleCode" {...register("roleCode")}>
                     {ROLE_CODES.map((r) => (
                       <option key={r} value={r}>
@@ -94,10 +94,10 @@ export function UsersClient({ companyId }: { companyId: string }) {
             </CardContent>
             <div className="flex justify-end gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
               <Button type="button" variant="ghost" onClick={() => setShowAdd(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button type="submit" loading={isSubmitting || add.isPending}>
-                Invite
+                {t("users.invite")}
               </Button>
             </div>
           </form>
@@ -109,23 +109,23 @@ export function UsersClient({ companyId }: { companyId: string }) {
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <tr className="text-left">
-                <Th>Name</Th>
-                <Th>Email</Th>
-                <Th>Role</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>{t("common.name")}</Th>
+                <Th>{t("common.email")}</Th>
+                <Th>{t("users.role")}</Th>
+                <Th className="text-right">{t("common.actions")}</Th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
-                    Loading…
+                    {t("common.loading")}
                   </td>
                 </tr>
               ) : !users || users.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
-                    No users yet.
+                    {t("users.empty")}
                   </td>
                 </tr>
               ) : (
@@ -138,16 +138,16 @@ export function UsersClient({ companyId }: { companyId: string }) {
                       try {
                         await update.mutateAsync({ userId: u.userId, roleCode: role });
                       } catch (err) {
-                        setActionError(err instanceof Error ? err.message : "Failed");
+                        setActionError(err instanceof Error ? err.message : t("users.failed"));
                       }
                     }}
                     onRemove={async () => {
-                      if (!confirm(`Remove ${u.email} from this company?`)) return;
+                      if (!confirm(t("users.confirmRemove", { email: u.email }))) return;
                       setActionError(null);
                       try {
                         await remove.mutateAsync(u.userId);
                       } catch (err) {
-                        setActionError(err instanceof Error ? err.message : "Failed");
+                        setActionError(err instanceof Error ? err.message : t("users.failed"));
                       }
                     }}
                   />
@@ -172,13 +172,14 @@ function Row({
   onChangeRole: (role: RoleCode) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   return (
     <tr className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
       <Td>
         {user.firstName} {user.lastName}
         {user.isDefault ? (
           <Badge variant="outline" className="ml-2 text-[10px]">
-            default
+            {t("users.default")}
           </Badge>
         ) : null}
       </Td>
@@ -198,7 +199,7 @@ function Row({
       </Td>
       <Td className="text-right">
         <Button size="sm" variant="ghost" onClick={onRemove}>
-          Remove
+          {t("users.remove")}
         </Button>
       </Td>
     </tr>

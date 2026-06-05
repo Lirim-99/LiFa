@@ -19,69 +19,75 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
+import { useT } from "@/i18n/client";
 import { cn } from "@/lib/cn";
 
 type IconType = ComponentType<SVGProps<SVGSVGElement>>;
-type NavItem = { href: string; label: string; icon: IconType };
+type NavItem = { href: string; labelKey: string; icon: IconType };
 
-const SECTIONS: { label: string; items: NavItem[] }[] = [
+const SECTIONS: { labelKey: string; items: NavItem[] }[] = [
   {
-    label: "Overview",
-    items: [{ href: "/", label: "Dashboard", icon: HomeIcon }],
+    labelKey: "nav.sections.overview",
+    items: [{ href: "/", labelKey: "nav.items.dashboard", icon: HomeIcon }],
   },
   {
-    label: "Sales",
+    labelKey: "nav.sections.sales",
     items: [
-      { href: "/invoices", label: "Invoices", icon: DocumentTextIcon },
-      { href: "/payments", label: "Payments", icon: BanknotesIcon },
-      { href: "/contacts", label: "Contacts", icon: UserGroupIcon },
+      { href: "/invoices", labelKey: "nav.items.invoices", icon: DocumentTextIcon },
+      { href: "/payments", labelKey: "nav.items.payments", icon: BanknotesIcon },
+      { href: "/contacts", labelKey: "nav.items.contacts", icon: UserGroupIcon },
     ],
   },
   {
-    label: "Catalog & Tax",
+    labelKey: "nav.sections.catalogTax",
     items: [
-      { href: "/products-services", label: "Products & services", icon: ShoppingBagIcon },
-      { href: "/tax-rates", label: "Tax rates", icon: ReceiptPercentIcon },
+      { href: "/products-services", labelKey: "nav.items.products", icon: ShoppingBagIcon },
+      { href: "/tax-rates", labelKey: "nav.items.taxRates", icon: ReceiptPercentIcon },
     ],
   },
   {
-    label: "Accounting",
+    labelKey: "nav.sections.accounting",
     items: [
-      { href: "/accounts", label: "Chart of accounts", icon: BookOpenIcon },
-      { href: "/journal-entries", label: "Journal entries", icon: ClipboardDocumentCheckIcon },
-      { href: "/accounting-periods", label: "Periods", icon: CalendarDaysIcon },
+      { href: "/accounts", labelKey: "nav.items.accounts", icon: BookOpenIcon },
+      {
+        href: "/journal-entries",
+        labelKey: "nav.items.journalEntries",
+        icon: ClipboardDocumentCheckIcon,
+      },
+      { href: "/accounting-periods", labelKey: "nav.items.periods", icon: CalendarDaysIcon },
     ],
   },
   {
-    label: "Reports",
+    labelKey: "nav.sections.reports",
     items: [
-      { href: "/reports/trial-balance", label: "Trial balance", icon: Squares2X2Icon },
-      { href: "/reports/general-ledger", label: "General ledger", icon: BookOpenIcon },
-      { href: "/reports/profit-and-loss", label: "P&L", icon: ChartBarIcon },
-      { href: "/reports/balance-sheet", label: "Balance sheet", icon: ChartBarIcon },
-      { href: "/reports/ar-aging", label: "AR aging", icon: ClipboardDocumentListIcon },
+      { href: "/reports/trial-balance", labelKey: "nav.items.trialBalance", icon: Squares2X2Icon },
+      { href: "/reports/general-ledger", labelKey: "nav.items.generalLedger", icon: BookOpenIcon },
+      { href: "/reports/profit-and-loss", labelKey: "nav.items.profitAndLoss", icon: ChartBarIcon },
+      { href: "/reports/balance-sheet", labelKey: "nav.items.balanceSheet", icon: ChartBarIcon },
+      { href: "/reports/ar-aging", labelKey: "nav.items.arAging", icon: ClipboardDocumentListIcon },
     ],
   },
   {
-    label: "Admin",
+    labelKey: "nav.sections.admin",
     items: [
-      { href: "/settings", label: "Company settings", icon: Cog6ToothIcon },
-      { href: "/users", label: "Users", icon: UsersIcon },
-      { href: "/audit-log", label: "Audit log", icon: ClipboardDocumentListIcon },
+      { href: "/settings", labelKey: "nav.items.settings", icon: Cog6ToothIcon },
+      { href: "/users", labelKey: "nav.items.users", icon: UsersIcon },
+      { href: "/audit-log", labelKey: "nav.items.auditLog", icon: ClipboardDocumentListIcon },
     ],
   },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const t = useT();
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white px-3 py-4 dark:border-slate-800 dark:bg-slate-900 sm:block">
       <nav className="space-y-5 text-sm">
         {SECTIONS.map((section) => (
-          <div key={section.label}>
+          <div key={section.labelKey}>
             <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              {section.label}
+              {t(section.labelKey)}
             </div>
             <ul>
               {section.items.map((item) => {
@@ -106,7 +112,7 @@ export function AppSidebar() {
                           active && "text-sky-600 dark:text-sky-400",
                         )}
                       />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate">{t(item.labelKey)}</span>
                     </Link>
                   </li>
                 );

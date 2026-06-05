@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
+import { getT } from "@/i18n/server";
 import { BalanceSheetReport } from "./balance-sheet-report";
 
 export const metadata: Metadata = { title: "Balance sheet — LiFa" };
 
-export default function BalanceSheetPage() {
+export default async function BalanceSheetPage() {
+  const { t } = await getT();
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Balance sheet</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {t("reports.balanceSheet.title")}
+        </h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Assets, liabilities and equity as of a date. Must satisfy A = L + E.
+          {t("reports.balanceSheet.description")}
         </p>
       </div>
       <BalanceSheetReport />

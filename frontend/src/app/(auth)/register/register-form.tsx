@@ -18,19 +18,27 @@ import {
 import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/client";
 
-const RegisterSchema = z.object({
-  firstName: z.string().min(1, "Required").max(100),
-  lastName: z.string().min(1, "Required").max(100),
-  email: z.string().email("Enter a valid email"),
-  // 8/72 mirrors the backend RegisterDto.
-  password: z.string().min(8, "Minimum 8 characters").max(72),
-});
-type RegisterValues = z.infer<typeof RegisterSchema>;
+type RegisterValues = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+};
 
 export function RegisterForm() {
   const router = useRouter();
+  const t = useT();
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const RegisterSchema = z.object({
+    firstName: z.string().min(1, t("common.required")).max(100),
+    lastName: z.string().min(1, t("common.required")).max(100),
+    email: z.string().email(t("auth.emailInvalid")),
+    // 8/72 mirrors the backend RegisterDto.
+    password: z.string().min(8, t("auth.passwordMin")).max(72),
+  });
 
   const {
     register,
@@ -47,7 +55,7 @@ export function RegisterForm() {
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      setSubmitError(body.error ?? "Registration failed");
+      setSubmitError(body.error ?? t("auth.registrationFailed"));
       return;
     }
     router.replace("/");
@@ -57,16 +65,14 @@ export function RegisterForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create your account</CardTitle>
-        <CardDescription>
-          Set up your owner profile. You can add your company on the next screen.
-        </CardDescription>
+        <CardTitle>{t("auth.createAccountTitle")}</CardTitle>
+        <CardDescription>{t("auth.createAccountDescription")}</CardDescription>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="firstName">First name</Label>
+              <Label htmlFor="firstName">{t("auth.firstName")}</Label>
               <Input
                 id="firstName"
                 autoComplete="given-name"
@@ -76,7 +82,7 @@ export function RegisterForm() {
               <FormError message={errors.firstName?.message} />
             </div>
             <div>
-              <Label htmlFor="lastName">Last name</Label>
+              <Label htmlFor="lastName">{t("auth.lastName")}</Label>
               <Input
                 id="lastName"
                 autoComplete="family-name"
@@ -87,7 +93,7 @@ export function RegisterForm() {
             </div>
           </div>
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("common.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -98,7 +104,7 @@ export function RegisterForm() {
             <FormError message={errors.email?.message} />
           </div>
           <div>
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -112,15 +118,15 @@ export function RegisterForm() {
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
           <Button type="submit" loading={isSubmitting} className="w-full">
-            Create account
+            {t("auth.createAccountButton")}
           </Button>
           <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-            Already have one?{" "}
+            {t("auth.alreadyHaveOne")}{" "}
             <Link
               href="/login"
               className="font-medium text-zinc-900 hover:underline dark:text-zinc-100"
             >
-              Sign in
+              {t("auth.signInTitle")}
             </Link>
           </p>
         </CardFooter>

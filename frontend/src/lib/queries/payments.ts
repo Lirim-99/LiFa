@@ -6,7 +6,7 @@ import type { PaginatedResponse, Payment } from "@/lib/types";
 
 export const paymentKeys = {
   all: ["payments"] as const,
-  list: (params: Record<string, unknown>) => ["payments", "list", params] as const,
+  list: (params: PaymentListParams) => ["payments", "list", params] as const,
   detail: (id: string) => ["payments", "detail", id] as const,
 };
 

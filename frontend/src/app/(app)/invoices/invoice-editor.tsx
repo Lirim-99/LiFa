@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { useFieldArray, useForm, useWatch, type Control } from "react-hook-form";
+import { useFieldArray, useForm, useWatch, type Control, type Resolver } from "react-hook-form";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/client";
 import { useAccounts } from "@/lib/queries/accounts";
 import { useCatalog } from "@/lib/queries/catalog";
 import { useContacts } from "@/lib/queries/contacts";
@@ -25,6 +26,7 @@ import {
 } from "@/lib/queries/invoices";
 import { useTaxRates } from "@/lib/queries/tax";
 import { DISCOUNT_TYPES, type DiscountType } from "@/lib/types";
+import { FiscalCouponPanel } from "./fiscal-coupon-panel";
 
 const LineSchema = z.object({
   productServiceId: z.string().uuid().optional().or(z.literal("")),
@@ -37,14 +39,16 @@ const LineSchema = z.object({
   incomeAccountId: z.string().uuid().optional().or(z.literal("")),
 });
 
-const Schema = z.object({
-  contactId: z.string().uuid("Pick a customer"),
-  issueDate: z.string().min(1),
-  dueDate: z.string().min(1),
-  notes: z.string().max(1000).optional().or(z.literal("")),
-  lines: z.array(LineSchema).min(1),
-});
-type Values = z.infer<typeof Schema>;
+function makeSchema(t: ReturnType<typeof useT>) {
+  return z.object({
+    contactId: z.string().uuid(t("invoices.pickCustomer")),
+    issueDate: z.string().min(1),
+    dueDate: z.string().min(1),
+    notes: z.string().max(1000).optional().or(z.literal("")),
+    lines: z.array(LineSchema).min(1),
+  });
+}
+type Values = z.infer<ReturnType<typeof makeSchema>>;
 
 export function InvoiceEditor({
   id,
@@ -55,6 +59,8 @@ export function InvoiceEditor({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
+  const Schema = useMemo(() => makeSchema(t), [t]);
   const { data: existing } = useInvoice(id);
   const create = useCreateInvoice();
   const update = useUpdateInvoice(id ?? "");
@@ -76,7 +82,7 @@ export function InvoiceEditor({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
-    resolver: zodResolver(Schema),
+    resolver: zodResolver(Schema) as Resolver<Values>,
     defaultValues: {
       contactId: "",
       issueDate: today(),
@@ -117,7 +123,7 @@ export function InvoiceEditor({
       issueDate: values.issueDate,
       dueDate: values.dueDate,
       notes: values.notes || undefined,
-      lines: values.lines.map((l) => ({
+      lines: values.lines.map((l: Values["lines"][number]) => ({
         productServiceId: l.productServiceId || undefined,
         description: l.description || undefined,
         quantity: l.quantity,
@@ -133,36 +139,37 @@ export function InvoiceEditor({
       else await create.mutateAsync(payload as never);
       onDone();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("invoices.failedToSave"));
     }
   });
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>
             {existing
               ? existing.invoiceNumber
-                ? `Invoice ${existing.invoiceNumber}`
-                : "Draft invoice"
-              : "New invoice"}
+                ? t("invoices.invoiceTitle", { number: existing.invoiceNumber })
+                : t("invoices.draftInvoice")
+              : t("invoices.newInvoice")}
           </CardTitle>
-          {existing ? <Badge>{existing.status}</Badge> : null}
+          {existing ? <Badge>{t(`enums.invoiceStatus.${existing.status}`)}</Badge> : null}
         </div>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="sm:col-span-3">
-              <Label htmlFor="contactId">Customer *</Label>
+              <Label htmlFor="contactId">{t("invoices.customerRequired")}</Label>
               <Select
                 id="contactId"
                 disabled={!isDraft}
                 invalid={!!errors.contactId}
                 {...register("contactId")}
               >
-                <option value="">— Pick a customer —</option>
+                <option value="">{t("invoices.pickCustomerOption")}</option>
                 {(contactsResp?.data ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.displayName}
@@ -172,11 +179,11 @@ export function InvoiceEditor({
               <FormError message={errors.contactId?.message} />
             </div>
             <div>
-              <Label htmlFor="issueDate">Issue date *</Label>
+              <Label htmlFor="issueDate">{t("invoices.issueDateRequired")}</Label>
               <Input id="issueDate" type="date" disabled={!isDraft} {...register("issueDate")} />
             </div>
             <div>
-              <Label htmlFor="dueDate">Due date *</Label>
+              <Label htmlFor="dueDate">{t("invoices.dueDateRequired")}</Label>
               <Input id="dueDate" type="date" disabled={!isDraft} {...register("dueDate")} />
             </div>
           </div>
@@ -185,12 +192,18 @@ export function InvoiceEditor({
             <table className="w-full min-w-[900px] text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr className="text-left">
-                  <th className="py-2 text-xs uppercase text-zinc-500">Product</th>
-                  <th className="py-2 text-xs uppercase text-zinc-500">Description</th>
-                  <th className="py-2 text-right text-xs uppercase text-zinc-500">Qty</th>
-                  <th className="py-2 text-right text-xs uppercase text-zinc-500">Unit price</th>
-                  <th className="py-2 text-xs uppercase text-zinc-500">Discount</th>
-                  <th className="py-2 text-xs uppercase text-zinc-500">Tax</th>
+                  <th className="py-2 text-xs uppercase text-zinc-500">{t("invoices.product")}</th>
+                  <th className="py-2 text-xs uppercase text-zinc-500">
+                    {t("invoices.lineDescription")}
+                  </th>
+                  <th className="py-2 text-right text-xs uppercase text-zinc-500">
+                    {t("invoices.qty")}
+                  </th>
+                  <th className="py-2 text-right text-xs uppercase text-zinc-500">
+                    {t("invoices.unitPrice")}
+                  </th>
+                  <th className="py-2 text-xs uppercase text-zinc-500">{t("invoices.discount")}</th>
+                  <th className="py-2 text-xs uppercase text-zinc-500">{t("invoices.tax")}</th>
                   <th />
                 </tr>
               </thead>
@@ -288,16 +301,16 @@ export function InvoiceEditor({
           {isDraft ? (
             <div className="flex items-center justify-between">
               <Button type="button" size="sm" variant="ghost" onClick={() => append(emptyLine())}>
-                + Add line
+                {t("invoices.addLine")}
               </Button>
               <details className="text-xs text-zinc-500">
-                <summary className="cursor-pointer">Override income account per line</summary>
+                <summary className="cursor-pointer">{t("invoices.overrideIncomeAccount")}</summary>
                 <div className="mt-2 space-y-2">
                   {fields.map((field, idx) => (
                     <div key={field.id} className="flex items-center gap-2">
                       <span className="w-6 text-right">{idx + 1}.</span>
                       <Select className="flex-1" {...register(`lines.${idx}.incomeAccountId`)}>
-                        <option value="">use company default (Sales Revenue)</option>
+                        <option value="">{t("invoices.useCompanyDefault")}</option>
                         {(accounts ?? [])
                           .filter((a) => a.accountType === "REVENUE")
                           .map((a) => (
@@ -314,7 +327,7 @@ export function InvoiceEditor({
           ) : null}
 
           <div>
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes">{t("invoices.notes")}</Label>
             <Textarea id="notes" rows={2} disabled={!isDraft} {...register("notes")} />
           </div>
 
@@ -328,18 +341,18 @@ export function InvoiceEditor({
                 type="button"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Delete this draft invoice?")) return;
+                  if (!confirm(t("invoices.confirmDeleteDraft"))) return;
                   await del.mutateAsync(existing.id);
                   onDone();
                 }}
               >
-                Delete draft
+                {t("invoices.deleteDraft")}
               </Button>
             ) : null}
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onCancel}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             {isDraft ? (
               <>
@@ -347,27 +360,24 @@ export function InvoiceEditor({
                   type="submit"
                   loading={isSubmitting || create.isPending || update.isPending}
                 >
-                  {existing ? "Save" : "Create draft"}
+                  {existing ? t("common.save") : t("invoices.createDraft")}
                 </Button>
                 {existing ? (
                   <Button
                     type="button"
                     onClick={async () => {
-                      if (
-                        !confirm("Issue this invoice? Posts a journal entry and assigns a number.")
-                      )
-                        return;
+                      if (!confirm(t("invoices.confirmIssue"))) return;
                       setSubmitError(null);
                       try {
                         await issue.mutateAsync(existing.id);
                         onDone();
                       } catch (err) {
-                        setSubmitError(err instanceof Error ? err.message : "Failed");
+                        setSubmitError(err instanceof Error ? err.message : t("invoices.failed"));
                       }
                     }}
                     loading={issue.isPending}
                   >
-                    Issue
+                    {t("invoices.issue")}
                   </Button>
                 ) : null}
               </>
@@ -381,24 +391,30 @@ export function InvoiceEditor({
                 type="button"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Void this invoice? Posts a reversal journal entry.")) return;
+                  if (!confirm(t("invoices.confirmVoid"))) return;
                   setSubmitError(null);
                   try {
                     await voidInv.mutateAsync(existing.id);
                     onDone();
                   } catch (err) {
-                    setSubmitError(err instanceof Error ? err.message : "Failed");
+                    setSubmitError(err instanceof Error ? err.message : t("invoices.failed"));
                   }
                 }}
                 loading={voidInv.isPending}
               >
-                Void
+                {t("invoices.void")}
               </Button>
             ) : null}
           </div>
         </CardFooter>
       </form>
     </Card>
+    {existing && existing.status !== "DRAFT" ? (
+      <div className="mt-4">
+        <FiscalCouponPanel invoiceId={existing.id} />
+      </div>
+    ) : null}
+    </>
   );
 }
 
@@ -409,6 +425,7 @@ function Totals({
   control: Control<Values>;
   taxRates: { id: string; rate: string; calculationType: string }[];
 }) {
+  const tr = useT();
   const lines = useWatch({ control, name: "lines" }) ?? [];
   const t = useMemo(() => {
     let net = 0,
@@ -437,7 +454,7 @@ function Totals({
     <>
       <tr>
         <td colSpan={5} className="pt-2 text-right text-xs uppercase text-zinc-500">
-          Subtotal
+          {tr("invoices.subtotal")}
         </td>
         <td colSpan={2} className="pt-2 text-right font-mono">
           {t.net.toFixed(4)}
@@ -445,7 +462,7 @@ function Totals({
       </tr>
       <tr>
         <td colSpan={5} className="text-right text-xs uppercase text-zinc-500">
-          Tax
+          {tr("invoices.tax")}
         </td>
         <td colSpan={2} className="text-right font-mono">
           {t.tax.toFixed(4)}
@@ -453,7 +470,7 @@ function Totals({
       </tr>
       <tr className="font-semibold">
         <td colSpan={5} className="pb-2 text-right text-xs uppercase">
-          Total
+          {tr("invoices.total")}
         </td>
         <td colSpan={2} className="pb-2 text-right font-mono">
           {t.total.toFixed(4)}

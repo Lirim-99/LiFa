@@ -7,11 +7,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { FormError } from "@/components/ui/form-error";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useLocale, useT } from "@/i18n/client";
+import { formatCurrency, formatDate } from "@/i18n/format";
 import { usePayment, usePayments, useVoidPayment } from "@/lib/queries/payments";
 import { PAYMENT_METHODS, PAYMENT_STATUSES, type Payment } from "@/lib/types";
 import { PaymentForm } from "./payment-form";
 
 export function PaymentsClient() {
+  const t = useT();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>("");
   const [method, setMethod] = useState<string>("");
@@ -32,7 +35,7 @@ export function PaymentsClient() {
         <CardHeader>
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t("common.status")}</Label>
               <Select
                 id="status"
                 value={status}
@@ -41,16 +44,16 @@ export function PaymentsClient() {
                   setStatus(e.target.value);
                 }}
               >
-                <option value="">All</option>
+                <option value="">{t("common.all")}</option>
                 {PAYMENT_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
-                    {s.label}
+                    {t(s.label)}
                   </option>
                 ))}
               </Select>
             </div>
             <div>
-              <Label htmlFor="method">Method</Label>
+              <Label htmlFor="method">{t("payments.method")}</Label>
               <Select
                 id="method"
                 value={method}
@@ -59,10 +62,10 @@ export function PaymentsClient() {
                   setMethod(e.target.value);
                 }}
               >
-                <option value="">All</option>
+                <option value="">{t("common.all")}</option>
                 {PAYMENT_METHODS.map((m) => (
                   <option key={m.value} value={m.value}>
-                    {m.label}
+                    {t(m.label)}
                   </option>
                 ))}
               </Select>
@@ -75,7 +78,7 @@ export function PaymentsClient() {
                   setShowNew((v) => !v);
                 }}
               >
-                {showNew ? "Cancel" : "+ Record payment"}
+                {showNew ? t("common.cancel") : t("payments.recordPaymentAction")}
               </Button>
             </div>
           </div>
@@ -93,26 +96,26 @@ export function PaymentsClient() {
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <tr className="text-left">
-                <Th>Date</Th>
-                <Th>Contact</Th>
-                <Th>Method</Th>
-                <Th className="text-right">Amount</Th>
-                <Th>Reference</Th>
-                <Th>Status</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>{t("payments.date")}</Th>
+                <Th>{t("payments.contact")}</Th>
+                <Th>{t("payments.method")}</Th>
+                <Th className="text-right">{t("payments.amount")}</Th>
+                <Th>{t("payments.reference")}</Th>
+                <Th>{t("common.status")}</Th>
+                <Th className="text-right">{t("common.actions")}</Th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
-                    Loading…
+                    {t("common.loading")}
                   </td>
                 </tr>
               ) : !data || data.data.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
-                    No payments yet.
+                    {t("payments.empty")}
                   </td>
                 </tr>
               ) : (
@@ -126,7 +129,11 @@ export function PaymentsClient() {
       {data && data.totalPages > 1 ? (
         <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
           <span>
-            Page {data.page} of {data.totalPages} · {data.total} total
+            {t("common.pagination", {
+              page: data.page,
+              totalPages: data.totalPages,
+              total: data.total,
+            })}
           </span>
           <div className="flex gap-2">
             <Button
@@ -135,7 +142,7 @@ export function PaymentsClient() {
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
             >
-              Previous
+              {t("common.previous")}
             </Button>
             <Button
               size="sm"
@@ -143,7 +150,7 @@ export function PaymentsClient() {
               disabled={page >= data.totalPages}
               onClick={() => setPage(page + 1)}
             >
-              Next
+              {t("common.next")}
             </Button>
           </div>
         </div>
@@ -153,23 +160,27 @@ export function PaymentsClient() {
 }
 
 function Row({ payment, onOpen }: { payment: Payment; onOpen: () => void }) {
+  const t = useT();
+  const locale = useLocale();
   return (
     <tr className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
-      <Td>{payment.paymentDate.slice(0, 10)}</Td>
+      <Td>{formatDate(payment.paymentDate.slice(0, 10), locale)}</Td>
       <Td>{payment.contact?.displayName ?? "—"}</Td>
       <Td>
-        <Badge variant="outline">{payment.paymentMethod.replace("_", " ")}</Badge>
+        <Badge variant="outline">{t(`enums.paymentMethod.${payment.paymentMethod}`)}</Badge>
       </Td>
-      <Td className="text-right font-mono text-xs">{Number(payment.totalAmount).toFixed(2)}</Td>
+      <Td className="text-right font-mono text-xs">
+        {formatCurrency(Number(payment.totalAmount), locale, payment.currency)}
+      </Td>
       <Td>{payment.referenceNumber ?? "—"}</Td>
       <Td>
         <Badge variant={payment.status === "RECORDED" ? "success" : "danger"}>
-          {payment.status}
+          {t(`enums.paymentStatus.${payment.status}`)}
         </Badge>
       </Td>
       <Td className="text-right">
         <Button size="sm" variant="ghost" onClick={onOpen}>
-          Open
+          {t("common.open")}
         </Button>
       </Td>
     </tr>
@@ -177,6 +188,8 @@ function Row({ payment, onOpen }: { payment: Payment; onOpen: () => void }) {
 }
 
 function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
+  const t = useT();
+  const locale = useLocale();
   const { data: payment } = usePayment(id);
   const voidPayment = useVoidPayment();
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -189,38 +202,41 @@ function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-base font-semibold">
-              Payment from {payment.contact?.displayName ?? "—"}
+              {t("payments.paymentFrom", { name: payment.contact?.displayName ?? "—" })}
             </div>
             <div className="text-sm text-zinc-500">
-              {payment.paymentDate.slice(0, 10)} · {payment.paymentMethod.replace("_", " ")} ·{" "}
-              {Number(payment.totalAmount).toFixed(2)} {payment.currency}
+              {formatDate(payment.paymentDate.slice(0, 10), locale)} ·{" "}
+              {t(`enums.paymentMethod.${payment.paymentMethod}`)} ·{" "}
+              {formatCurrency(Number(payment.totalAmount), locale, payment.currency)}
             </div>
           </div>
           <Badge variant={payment.status === "RECORDED" ? "success" : "danger"}>
-            {payment.status}
+            {t(`enums.paymentStatus.${payment.status}`)}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {payment.referenceNumber ? (
           <div className="text-sm">
-            <span className="text-zinc-500">Reference:</span>{" "}
+            <span className="text-zinc-500">{t("payments.referenceLabel")}</span>{" "}
             <span className="font-mono">{payment.referenceNumber}</span>
           </div>
         ) : null}
         {payment.notes ? (
           <div className="text-sm">
-            <span className="text-zinc-500">Notes:</span> {payment.notes}
+            <span className="text-zinc-500">{t("payments.notesLabel")}</span> {payment.notes}
           </div>
         ) : null}
         <div>
-          <div className="mb-2 text-xs uppercase text-zinc-500">Allocations</div>
+          <div className="mb-2 text-xs uppercase text-zinc-500">{t("payments.allocations")}</div>
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 dark:border-zinc-800">
               <tr className="text-left">
-                <th className="py-2 text-xs uppercase text-zinc-500">Invoice</th>
-                <th className="py-2 text-right text-xs uppercase text-zinc-500">Allocated</th>
-                <th className="py-2 text-xs uppercase text-zinc-500">Status</th>
+                <th className="py-2 text-xs uppercase text-zinc-500">{t("payments.invoice")}</th>
+                <th className="py-2 text-right text-xs uppercase text-zinc-500">
+                  {t("payments.allocated")}
+                </th>
+                <th className="py-2 text-xs uppercase text-zinc-500">{t("common.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -233,13 +249,13 @@ function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
                     {a.invoice?.invoiceNumber ?? a.invoiceId.slice(0, 8)}
                   </td>
                   <td className="py-2 text-right font-mono">
-                    {Number(a.allocatedAmount).toFixed(2)}
+                    {formatCurrency(Number(a.allocatedAmount), locale, payment.currency)}
                   </td>
                   <td className="py-2">
                     {a.isVoided ? (
-                      <Badge variant="danger">voided</Badge>
+                      <Badge variant="danger">{t("payments.voided")}</Badge>
                     ) : (
-                      <Badge variant="success">active</Badge>
+                      <Badge variant="success">{t("payments.active")}</Badge>
                     )}
                   </td>
                 </tr>
@@ -254,28 +270,23 @@ function PaymentDetail({ id, onClose }: { id: string; onClose: () => void }) {
               <Button
                 variant="danger"
                 onClick={async () => {
-                  if (
-                    !confirm(
-                      "Void this payment? Reverses allocations and posts a reversal journal entry.",
-                    )
-                  )
-                    return;
+                  if (!confirm(t("payments.voidConfirm"))) return;
                   setSubmitError(null);
                   try {
                     await voidPayment.mutateAsync(payment.id);
                     onClose();
                   } catch (err) {
-                    setSubmitError(err instanceof Error ? err.message : "Failed");
+                    setSubmitError(err instanceof Error ? err.message : t("payments.voidFailed"));
                   }
                 }}
                 loading={voidPayment.isPending}
               >
-                Void payment
+                {t("payments.voidPayment")}
               </Button>
             ) : null}
           </div>
           <Button variant="ghost" onClick={onClose}>
-            Close
+            {t("payments.close")}
           </Button>
         </div>
       </CardContent>

@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { type Resolver, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useT } from "@/i18n/client";
 import {
   useCompanyAddresses,
   useCreateAddress,
@@ -33,6 +34,7 @@ const AddressSchema = z.object({
 type Values = z.infer<typeof AddressSchema>;
 
 export function AddressesSection({ companyId }: { companyId: string }) {
+  const t = useT();
   const { data, isLoading } = useCompanyAddresses(companyId);
   const [editing, setEditing] = useState<CompanyAddress | null>(null);
   const [showNew, setShowNew] = useState(false);
@@ -42,12 +44,12 @@ export function AddressesSection({ companyId }: { companyId: string }) {
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div>
-            <CardTitle>Addresses</CardTitle>
-            <CardDescription>Registered, business, or other locations.</CardDescription>
+            <CardTitle>{t("settings.addresses.title")}</CardTitle>
+            <CardDescription>{t("settings.addresses.description")}</CardDescription>
           </div>
           {!showNew && !editing ? (
             <Button size="sm" variant="secondary" onClick={() => setShowNew(true)}>
-              + Add address
+              {t("settings.addresses.addAddress")}
             </Button>
           ) : null}
         </div>
@@ -61,7 +63,7 @@ export function AddressesSection({ companyId }: { companyId: string }) {
           />
         ) : null}
 
-        {isLoading ? <p className="text-sm text-zinc-500">Loading…</p> : null}
+        {isLoading ? <p className="text-sm text-zinc-500">{t("common.loading")}</p> : null}
 
         {(data ?? []).map((a) =>
           editing?.id === a.id ? (
@@ -78,7 +80,7 @@ export function AddressesSection({ companyId }: { companyId: string }) {
         )}
 
         {data && data.length === 0 && !showNew ? (
-          <p className="text-sm text-zinc-500">No addresses yet.</p>
+          <p className="text-sm text-zinc-500">{t("settings.addresses.empty")}</p>
         ) : null}
       </CardContent>
     </Card>
@@ -94,33 +96,34 @@ function AddressRow({
   companyId: string;
   onEdit: () => void;
 }) {
+  const t = useT();
   const del = useDeleteAddress(companyId);
   const formatted =
     [address.street, address.city, address.municipality, address.country]
       .filter(Boolean)
-      .join(", ") || "(no details)";
+      .join(", ") || t("settings.addresses.noDetails");
 
   return (
     <div className="flex items-center justify-between rounded-md border border-zinc-200 px-4 py-3 dark:border-zinc-800">
       <div className="flex items-center gap-3">
         <Badge variant={address.isPrimary ? "success" : "outline"}>
-          {address.addressType}
-          {address.isPrimary ? " · primary" : ""}
+          {t(`enums.addressType.${address.addressType}`)}
+          {address.isPrimary ? ` ${t("settings.addresses.primarySuffix")}` : ""}
         </Badge>
         <span className="text-sm">{formatted}</span>
       </div>
       <div className="flex gap-2">
         <Button size="sm" variant="ghost" onClick={onEdit}>
-          Edit
+          {t("settings.addresses.edit")}
         </Button>
         <Button
           size="sm"
           variant="ghost"
           onClick={() => {
-            if (confirm("Delete this address?")) void del.mutate(address.id);
+            if (confirm(t("settings.addresses.confirmDelete"))) void del.mutate(address.id);
           }}
         >
-          Delete
+          {t("settings.addresses.delete")}
         </Button>
       </div>
     </div>
@@ -138,6 +141,7 @@ function AddressForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const create = useCreateAddress(companyId);
   const update = useUpdateAddress(companyId);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -147,7 +151,7 @@ function AddressForm({
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
-    resolver: zodResolver(AddressSchema),
+    resolver: zodResolver(AddressSchema) as Resolver<Values>,
     defaultValues: {
       addressType: (initial?.addressType ?? "REGISTERED") as AddressType,
       country: initial?.country ?? "",
@@ -166,13 +170,13 @@ function AddressForm({
     );
     try {
       if (initial) {
-        await update.mutateAsync({ id: initial.id, ...(payload as never) });
+        await update.mutateAsync({ id: initial.id, ...payload } as never);
       } else {
         await create.mutateAsync(payload as never);
       }
       onDone();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("settings.failedToSave"));
     }
   });
 
@@ -184,47 +188,47 @@ function AddressForm({
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <Label htmlFor="addressType">Type</Label>
+          <Label htmlFor="addressType">{t("common.type")}</Label>
           <Select id="addressType" {...register("addressType")}>
-            {ADDRESS_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            {ADDRESS_TYPES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.label)}
               </option>
             ))}
           </Select>
         </div>
         <div className="flex items-end gap-2">
           <input id="isPrimary" type="checkbox" className="h-4 w-4" {...register("isPrimary")} />
-          <Label htmlFor="isPrimary">Primary</Label>
+          <Label htmlFor="isPrimary">{t("settings.addresses.primary")}</Label>
         </div>
         <div>
-          <Label htmlFor="country">Country</Label>
+          <Label htmlFor="country">{t("settings.addresses.country")}</Label>
           <Input id="country" {...register("country")} />
         </div>
         <div>
-          <Label htmlFor="municipality">Municipality</Label>
+          <Label htmlFor="municipality">{t("settings.addresses.municipality")}</Label>
           <Input id="municipality" {...register("municipality")} />
         </div>
         <div>
-          <Label htmlFor="city">City</Label>
+          <Label htmlFor="city">{t("settings.addresses.city")}</Label>
           <Input id="city" {...register("city")} />
         </div>
         <div>
-          <Label htmlFor="postalCode">Postal code</Label>
+          <Label htmlFor="postalCode">{t("settings.addresses.postalCode")}</Label>
           <Input id="postalCode" {...register("postalCode")} />
         </div>
         <div className="sm:col-span-2">
-          <Label htmlFor="street">Street</Label>
+          <Label htmlFor="street">{t("settings.addresses.street")}</Label>
           <Input id="street" {...register("street")} />
         </div>
       </div>
       <FormError message={submitError ?? errors.addressType?.message} />
       <div className="mt-4 flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button type="submit" loading={isSubmitting || create.isPending || update.isPending}>
-          {initial ? "Save" : "Add"}
+          {initial ? t("common.save") : t("settings.addresses.add")}
         </Button>
       </div>
     </form>

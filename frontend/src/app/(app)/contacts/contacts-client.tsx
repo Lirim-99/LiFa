@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,16 +12,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/client";
 import { useContacts, useCreateContact, useUpdateContact } from "@/lib/queries/contacts";
 import type { Contact } from "@/lib/types";
 
-const ContactSchema = z
+const ContactShape = z
   .object({
-    displayName: z.string().min(1, "Required").max(255),
+    displayName: z.string().min(1).max(255),
     legalName: z.string().max(255).optional().or(z.literal("")),
     isCustomer: z.boolean().default(false),
     isVendor: z.boolean().default(false),
-    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    email: z.string().email().optional().or(z.literal("")),
     phone: z.string().max(50).optional().or(z.literal("")),
     taxId: z.string().max(50).optional().or(z.literal("")),
     paymentTermsDays: z.coerce.number().int().min(0).optional(),
@@ -33,15 +34,13 @@ const ContactSchema = z
     postalCode: z.string().max(20).optional().or(z.literal("")),
     notes: z.string().max(1000).optional().or(z.literal("")),
   })
-  .refine((v) => v.isCustomer || v.isVendor, {
-    message: "Must be customer, vendor, or both",
-    path: ["isCustomer"],
-  });
-type Values = z.infer<typeof ContactSchema>;
+  .refine((v) => v.isCustomer || v.isVendor, { path: ["isCustomer"] });
+type Values = z.infer<typeof ContactShape>;
 
 type RoleFilter = "all" | "customers" | "vendors";
 
 export function ContactsClient() {
+  const t = useT();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
@@ -65,10 +64,10 @@ export function ContactsClient() {
         <CardHeader>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[200px]">
-              <Label htmlFor="search">Search</Label>
+              <Label htmlFor="search">{t("common.search")}</Label>
               <Input
                 id="search"
-                placeholder="Name, email, legal name…"
+                placeholder={t("contacts.searchPlaceholder")}
                 value={search}
                 onChange={(e) => {
                   setPage(1);
@@ -77,7 +76,7 @@ export function ContactsClient() {
               />
             </div>
             <div>
-              <Label htmlFor="roleFilter">Role</Label>
+              <Label htmlFor="roleFilter">{t("contacts.role")}</Label>
               <Select
                 id="roleFilter"
                 value={roleFilter}
@@ -86,9 +85,9 @@ export function ContactsClient() {
                   setRoleFilter(e.target.value as RoleFilter);
                 }}
               >
-                <option value="all">All</option>
-                <option value="customers">Customers</option>
-                <option value="vendors">Vendors</option>
+                <option value="all">{t("common.all")}</option>
+                <option value="customers">{t("contacts.customers")}</option>
+                <option value="vendors">{t("contacts.vendors")}</option>
               </Select>
             </div>
             <label className="mb-2 flex items-center gap-2 text-sm">
@@ -98,7 +97,7 @@ export function ContactsClient() {
                 checked={includeInactive}
                 onChange={(e) => setIncludeInactive(e.target.checked)}
               />
-              Include inactive
+              {t("contacts.includeInactive")}
             </label>
             <Button
               variant="secondary"
@@ -107,7 +106,7 @@ export function ContactsClient() {
                 setShowNew((v) => !v);
               }}
             >
-              {showNew ? "Cancel" : "+ New contact"}
+              {showNew ? t("common.cancel") : t("contacts.newContact")}
             </Button>
           </div>
         </CardHeader>
@@ -122,24 +121,24 @@ export function ContactsClient() {
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <tr className="text-left">
-                <Th>Name</Th>
-                <Th>Role</Th>
-                <Th>Email</Th>
-                <Th>Phone</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>{t("common.name")}</Th>
+                <Th>{t("contacts.role")}</Th>
+                <Th>{t("common.email")}</Th>
+                <Th>{t("contacts.phone")}</Th>
+                <Th className="text-right">{t("common.actions")}</Th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
-                    Loading…
+                    {t("common.loading")}
                   </td>
                 </tr>
               ) : !data || data.data.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
-                    No contacts.
+                    {t("contacts.empty")}
                   </td>
                 </tr>
               ) : (
@@ -167,16 +166,20 @@ export function ContactsClient() {
                       </Td>
                       <Td>
                         <div className="flex gap-1">
-                          {c.isCustomer ? <Badge variant="success">Customer</Badge> : null}
-                          {c.isVendor ? <Badge>Vendor</Badge> : null}
-                          {!c.isActive ? <Badge variant="warning">Inactive</Badge> : null}
+                          {c.isCustomer ? (
+                            <Badge variant="success">{t("contacts.customer")}</Badge>
+                          ) : null}
+                          {c.isVendor ? <Badge>{t("contacts.vendor")}</Badge> : null}
+                          {!c.isActive ? (
+                            <Badge variant="warning">{t("contacts.inactive")}</Badge>
+                          ) : null}
                         </div>
                       </Td>
                       <Td>{c.email ?? "—"}</Td>
                       <Td>{c.phone ?? "—"}</Td>
                       <Td className="text-right">
                         <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
-                          Edit
+                          {t("contacts.edit")}
                         </Button>
                       </Td>
                     </tr>
@@ -224,11 +227,10 @@ function Pagination({
   total: number;
   onChange: (page: number) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
-      <span>
-        Page {page} of {totalPages} · {total} total
-      </span>
+      <span>{t("common.pagination", { page, totalPages, total })}</span>
       <div className="flex gap-2">
         <Button
           size="sm"
@@ -236,7 +238,7 @@ function Pagination({
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}
         >
-          Previous
+          {t("common.previous")}
         </Button>
         <Button
           size="sm"
@@ -244,7 +246,7 @@ function Pagination({
           disabled={page >= totalPages}
           onClick={() => onChange(page + 1)}
         >
-          Next
+          {t("common.next")}
         </Button>
       </div>
     </div>
@@ -260,16 +262,40 @@ function ContactForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const create = useCreateContact();
   const update = useUpdateContact(initial?.id ?? "");
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const ContactSchema = z
+    .object({
+      displayName: z.string().min(1, t("common.required")).max(255),
+      legalName: z.string().max(255).optional().or(z.literal("")),
+      isCustomer: z.boolean().default(false),
+      isVendor: z.boolean().default(false),
+      email: z.string().email(t("contacts.invalidEmail")).optional().or(z.literal("")),
+      phone: z.string().max(50).optional().or(z.literal("")),
+      taxId: z.string().max(50).optional().or(z.literal("")),
+      paymentTermsDays: z.coerce.number().int().min(0).optional(),
+      currency: z.string().max(3).default("EUR"),
+      country: z.string().max(100).optional().or(z.literal("")),
+      municipality: z.string().max(100).optional().or(z.literal("")),
+      city: z.string().max(100).optional().or(z.literal("")),
+      street: z.string().max(255).optional().or(z.literal("")),
+      postalCode: z.string().max(20).optional().or(z.literal("")),
+      notes: z.string().max(1000).optional().or(z.literal("")),
+    })
+    .refine((v) => v.isCustomer || v.isVendor, {
+      message: t("contacts.roleRequired"),
+      path: ["isCustomer"],
+    });
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
-    resolver: zodResolver(ContactSchema),
+    resolver: zodResolver(ContactSchema) as Resolver<Values>,
     defaultValues: {
       displayName: initial?.displayName ?? "",
       legalName: initial?.legalName ?? "",
@@ -299,52 +325,52 @@ function ContactForm({
       else await create.mutateAsync(payload as never);
       onDone();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("contacts.saveFailed"));
     }
   });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{initial ? "Edit contact" : "New contact"}</CardTitle>
+        <CardTitle>{initial ? t("contacts.editContact") : t("contacts.newContact")}</CardTitle>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="displayName">Display name *</Label>
+              <Label htmlFor="displayName">{t("contacts.displayName")}</Label>
               <Input id="displayName" invalid={!!errors.displayName} {...register("displayName")} />
               <FormError message={errors.displayName?.message} />
             </div>
             <div>
-              <Label htmlFor="legalName">Legal name</Label>
+              <Label htmlFor="legalName">{t("contacts.legalName")}</Label>
               <Input id="legalName" {...register("legalName")} />
             </div>
             <div className="flex items-end gap-4">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" className="h-4 w-4" {...register("isCustomer")} />
-                Customer
+                {t("contacts.customer")}
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" className="h-4 w-4" {...register("isVendor")} />
-                Vendor
+                {t("contacts.vendor")}
               </label>
             </div>
             <div>
-              <Label htmlFor="taxId">Tax ID</Label>
+              <Label htmlFor="taxId">{t("contacts.taxId")}</Label>
               <Input id="taxId" {...register("taxId")} />
             </div>
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("common.email")}</Label>
               <Input id="email" type="email" invalid={!!errors.email} {...register("email")} />
               <FormError message={errors.email?.message} />
             </div>
             <div>
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone">{t("contacts.phone")}</Label>
               <Input id="phone" {...register("phone")} />
             </div>
             <div>
-              <Label htmlFor="paymentTermsDays">Payment terms (days)</Label>
+              <Label htmlFor="paymentTermsDays">{t("contacts.paymentTermsDays")}</Label>
               <Input
                 id="paymentTermsDays"
                 type="number"
@@ -355,31 +381,31 @@ function ContactForm({
               />
             </div>
             <div>
-              <Label htmlFor="currency">Currency</Label>
+              <Label htmlFor="currency">{t("contacts.currency")}</Label>
               <Input id="currency" maxLength={3} {...register("currency")} />
             </div>
             <div>
-              <Label htmlFor="country">Country</Label>
+              <Label htmlFor="country">{t("contacts.country")}</Label>
               <Input id="country" {...register("country")} />
             </div>
             <div>
-              <Label htmlFor="municipality">Municipality</Label>
+              <Label htmlFor="municipality">{t("contacts.municipality")}</Label>
               <Input id="municipality" {...register("municipality")} />
             </div>
             <div>
-              <Label htmlFor="city">City</Label>
+              <Label htmlFor="city">{t("contacts.city")}</Label>
               <Input id="city" {...register("city")} />
             </div>
             <div>
-              <Label htmlFor="postalCode">Postal code</Label>
+              <Label htmlFor="postalCode">{t("contacts.postalCode")}</Label>
               <Input id="postalCode" {...register("postalCode")} />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="street">Street</Label>
+              <Label htmlFor="street">{t("contacts.street")}</Label>
               <Input id="street" {...register("street")} />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes">{t("contacts.notes")}</Label>
               <Textarea id="notes" rows={2} {...register("notes")} />
             </div>
           </div>
@@ -388,25 +414,27 @@ function ContactForm({
           {initial && initial.isActive ? (
             <div className="flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900">
               <span className="text-zinc-600 dark:text-zinc-400">
-                Deactivate — hides this contact from lists. Reactivate later from filter.
+                {t("contacts.deactivateHint")}
               </span>
               <Button
                 type="button"
                 size="sm"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Deactivate this contact?")) return;
+                  if (!confirm(t("contacts.deactivateConfirm"))) return;
                   await update.mutateAsync({ isActive: false });
                   onDone();
                 }}
               >
-                Deactivate
+                {t("contacts.deactivate")}
               </Button>
             </div>
           ) : null}
           {initial && !initial.isActive ? (
             <div className="flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900">
-              <span className="text-zinc-600 dark:text-zinc-400">Currently inactive.</span>
+              <span className="text-zinc-600 dark:text-zinc-400">
+                {t("contacts.currentlyInactive")}
+              </span>
               <Button
                 type="button"
                 size="sm"
@@ -416,17 +444,17 @@ function ContactForm({
                   onDone();
                 }}
               >
-                Reactivate
+                {t("contacts.reactivate")}
               </Button>
             </div>
           ) : null}
         </CardContent>
         <div className="flex justify-end gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting || create.isPending || update.isPending}>
-            {initial ? "Save" : "Create"}
+            {initial ? t("common.save") : t("contacts.create")}
           </Button>
         </div>
       </form>

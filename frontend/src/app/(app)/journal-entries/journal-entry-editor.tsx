@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { useFieldArray, useForm, useWatch, type Control } from "react-hook-form";
+import { useFieldArray, useForm, useWatch, type Control, type Resolver } from "react-hook-form";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useT } from "@/i18n/client";
 import { useAccounts } from "@/lib/queries/accounts";
 import {
   useCreateJournalEntry,
@@ -21,18 +22,21 @@ import {
   useVoidJournalEntry,
 } from "@/lib/queries/journal-entries";
 
-const LineSchema = z.object({
-  accountId: z.string().uuid("Pick an account"),
-  description: z.string().max(500).optional().or(z.literal("")),
-  debitAmount: z.coerce.number().min(0),
-  creditAmount: z.coerce.number().min(0),
-});
-const Schema = z.object({
+const Shape = z.object({
   entryDate: z.string().min(1),
   memo: z.string().max(500).optional().or(z.literal("")),
-  lines: z.array(LineSchema).min(2),
+  lines: z
+    .array(
+      z.object({
+        accountId: z.string().uuid(),
+        description: z.string().max(500).optional().or(z.literal("")),
+        debitAmount: z.coerce.number().min(0),
+        creditAmount: z.coerce.number().min(0),
+      }),
+    )
+    .min(2),
 });
-type Values = z.infer<typeof Schema>;
+type Values = z.infer<typeof Shape>;
 
 export function JournalEntryEditor({
   id,
@@ -43,6 +47,7 @@ export function JournalEntryEditor({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const { data: existing } = useJournalEntry(id);
   const create = useCreateJournalEntry();
   const update = useUpdateJournalEntry(id ?? "");
@@ -51,6 +56,18 @@ export function JournalEntryEditor({
   const del = useDeleteJournalEntry();
   const { data: accounts } = useAccounts();
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const LineSchema = z.object({
+    accountId: z.string().uuid(t("journal.pickAccount")),
+    description: z.string().max(500).optional().or(z.literal("")),
+    debitAmount: z.coerce.number().min(0),
+    creditAmount: z.coerce.number().min(0),
+  });
+  const Schema = z.object({
+    entryDate: z.string().min(1),
+    memo: z.string().max(500).optional().or(z.literal("")),
+    lines: z.array(LineSchema).min(2),
+  });
 
   const isDraft = !existing || existing.status === "DRAFT";
   const isManual = !existing || existing.sourceDocumentType === "MANUAL";
@@ -63,7 +80,7 @@ export function JournalEntryEditor({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
-    resolver: zodResolver(Schema),
+    resolver: zodResolver(Schema) as Resolver<Values>,
     defaultValues: {
       entryDate: today(),
       memo: "",
@@ -112,7 +129,7 @@ export function JournalEntryEditor({
       else await create.mutateAsync(payload);
       onDone();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("journal.saveFailed"));
     }
   });
 
@@ -123,16 +140,18 @@ export function JournalEntryEditor({
           <CardTitle>
             {existing
               ? existing.entryNumber
-                ? `Entry ${existing.entryNumber}`
-                : "Draft journal entry"
-              : "New journal entry"}
+                ? t("journal.entryTitle", { number: existing.entryNumber })
+                : t("journal.draftEntryTitle")
+              : t("journal.newEntryTitle")}
           </CardTitle>
           {existing ? (
             <div className="flex gap-2">
               <Badge variant={existing.status === "POSTED" ? "success" : "warning"}>
-                {existing.status}
+                {t(`enums.journalEntryStatus.${existing.status}`)}
               </Badge>
-              {existing.reversedByEntryId ? <Badge variant="danger">reversed</Badge> : null}
+              {existing.reversedByEntryId ? (
+                <Badge variant="danger">{t("journal.reversed")}</Badge>
+              ) : null}
               {existing.sourceDocumentType !== "MANUAL" ? (
                 <Badge variant="outline">{existing.sourceDocumentType}</Badge>
               ) : null}
@@ -144,11 +163,11 @@ export function JournalEntryEditor({
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="entryDate">Entry date *</Label>
+              <Label htmlFor="entryDate">{t("journal.entryDate")}</Label>
               <Input id="entryDate" type="date" disabled={!canEdit} {...register("entryDate")} />
             </div>
             <div>
-              <Label htmlFor="memo">Memo</Label>
+              <Label htmlFor="memo">{t("journal.memo")}</Label>
               <Input id="memo" disabled={!canEdit} {...register("memo")} />
             </div>
           </div>
@@ -157,10 +176,16 @@ export function JournalEntryEditor({
             <table className="w-full text-sm">
               <thead className="border-b border-zinc-200 dark:border-zinc-800">
                 <tr className="text-left">
-                  <th className="py-2 text-xs uppercase text-zinc-500">Account</th>
-                  <th className="py-2 text-xs uppercase text-zinc-500">Description</th>
-                  <th className="py-2 text-right text-xs uppercase text-zinc-500">Debit</th>
-                  <th className="py-2 text-right text-xs uppercase text-zinc-500">Credit</th>
+                  <th className="py-2 text-xs uppercase text-zinc-500">{t("journal.account")}</th>
+                  <th className="py-2 text-xs uppercase text-zinc-500">
+                    {t("journal.lineDescription")}
+                  </th>
+                  <th className="py-2 text-right text-xs uppercase text-zinc-500">
+                    {t("journal.debit")}
+                  </th>
+                  <th className="py-2 text-right text-xs uppercase text-zinc-500">
+                    {t("journal.credit")}
+                  </th>
                   <th />
                 </tr>
               </thead>
@@ -234,7 +259,7 @@ export function JournalEntryEditor({
                 append({ accountId: "", description: "", debitAmount: 0, creditAmount: 0 })
               }
             >
-              + Add line
+              {t("journal.addLine")}
             </Button>
           ) : null}
 
@@ -247,18 +272,18 @@ export function JournalEntryEditor({
                 type="button"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Delete this draft?")) return;
+                  if (!confirm(t("journal.deleteDraftConfirm"))) return;
                   await del.mutateAsync(existing.id);
                   onDone();
                 }}
               >
-                Delete draft
+                {t("journal.deleteDraft")}
               </Button>
             ) : null}
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={onCancel}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             {canEdit ? (
               <>
@@ -266,7 +291,7 @@ export function JournalEntryEditor({
                   type="submit"
                   loading={isSubmitting || create.isPending || update.isPending}
                 >
-                  {existing ? "Save" : "Create draft"}
+                  {existing ? t("common.save") : t("journal.createDraft")}
                 </Button>
                 {existing ? (
                   <Button
@@ -277,12 +302,12 @@ export function JournalEntryEditor({
                         await post.mutateAsync(existing.id);
                         onDone();
                       } catch (err) {
-                        setSubmitError(err instanceof Error ? err.message : "Failed");
+                        setSubmitError(err instanceof Error ? err.message : t("journal.failed"));
                       }
                     }}
                     loading={post.isPending}
                   >
-                    Post
+                    {t("journal.post")}
                   </Button>
                 ) : null}
               </>
@@ -295,18 +320,18 @@ export function JournalEntryEditor({
                 type="button"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Create a reversal entry?")) return;
+                  if (!confirm(t("journal.voidConfirm"))) return;
                   setSubmitError(null);
                   try {
                     await voidEntry.mutateAsync(existing.id);
                     onDone();
                   } catch (err) {
-                    setSubmitError(err instanceof Error ? err.message : "Failed");
+                    setSubmitError(err instanceof Error ? err.message : t("journal.failed"));
                   }
                 }}
                 loading={voidEntry.isPending}
               >
-                Void
+                {t("journal.void")}
               </Button>
             ) : null}
           </div>
@@ -317,6 +342,7 @@ export function JournalEntryEditor({
 }
 
 function Totals({ control }: { control: Control<Values> }) {
+  const t = useT();
   const lines = useWatch({ control, name: "lines" }) ?? [];
   const totals = useMemo(() => {
     let d = 0,
@@ -331,13 +357,13 @@ function Totals({ control }: { control: Control<Values> }) {
   return (
     <tr className="font-medium">
       <td colSpan={2} className="pt-2 text-right text-xs uppercase text-zinc-500">
-        Totals
+        {t("journal.totals")}
       </td>
       <td className="pt-2 text-right">{totals.d.toFixed(4)}</td>
       <td className="pt-2 text-right">{totals.c.toFixed(4)}</td>
       <td className="pt-2 text-right">
         <Badge variant={balanced ? "success" : "danger"}>
-          {balanced ? "Balanced" : `Δ ${totals.diff.toFixed(4)}`}
+          {balanced ? t("journal.balanced") : t("journal.diff", { amount: totals.diff.toFixed(4) })}
         </Badge>
       </td>
     </tr>

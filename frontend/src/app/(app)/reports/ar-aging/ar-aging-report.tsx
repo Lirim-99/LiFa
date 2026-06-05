@@ -4,11 +4,23 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLocale, useT } from "@/i18n/client";
+import { formatCurrency } from "@/i18n/format";
 import { useArAging } from "@/lib/queries/reports";
 
 const BUCKETS = ["current", "1-30", "31-60", "61-90", "91+"] as const;
 
+const BUCKET_KEYS: Record<(typeof BUCKETS)[number], string> = {
+  current: "reports.arAging.buckets.current",
+  "1-30": "reports.arAging.buckets.b1to30",
+  "31-60": "reports.arAging.buckets.b31to60",
+  "61-90": "reports.arAging.buckets.b61to90",
+  "91+": "reports.arAging.buckets.b91plus",
+};
+
 export function ArAgingReport() {
+  const t = useT();
+  const locale = useLocale();
   const [asOf, setAsOf] = useState(() => today());
   const { data, isLoading } = useArAging(asOf);
 
@@ -18,7 +30,7 @@ export function ArAgingReport() {
         <CardHeader>
           <div className="flex items-end gap-3">
             <div>
-              <Label htmlFor="asOf">As of</Label>
+              <Label htmlFor="asOf">{t("reports.common.asOf")}</Label>
               <Input id="asOf" type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
             </div>
           </div>
@@ -30,26 +42,26 @@ export function ArAgingReport() {
           <table className="w-full text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
               <tr className="text-left">
-                <Th>Customer</Th>
+                <Th>{t("reports.arAging.customer")}</Th>
                 {BUCKETS.map((b) => (
                   <Th key={b} className="text-right">
-                    {b === "current" ? "Current" : `${b} days`}
+                    {t(BUCKET_KEYS[b])}
                   </Th>
                 ))}
-                <Th className="text-right">Total</Th>
+                <Th className="text-right">{t("reports.common.total")}</Th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
-                    Loading…
+                    {t("common.loading")}
                   </td>
                 </tr>
               ) : !data || data.rows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
-                    No outstanding receivables.
+                    {t("reports.arAging.empty")}
                   </td>
                 </tr>
               ) : (
@@ -61,10 +73,12 @@ export function ArAgingReport() {
                     <Td>{r.contactName}</Td>
                     {BUCKETS.map((b) => (
                       <Td key={b} className="text-right font-mono">
-                        {fmt(r[b])}
+                        {formatCurrency(Number(r[b]), locale)}
                       </Td>
                     ))}
-                    <Td className="text-right font-mono font-semibold">{fmt(r.total)}</Td>
+                    <Td className="text-right font-mono font-semibold">
+                      {formatCurrency(Number(r.total), locale)}
+                    </Td>
                   </tr>
                 ))
               )}
@@ -72,13 +86,15 @@ export function ArAgingReport() {
             {data ? (
               <tfoot className="border-t-2 border-zinc-300 font-semibold dark:border-zinc-700">
                 <tr>
-                  <td className="px-4 py-3">Total</td>
+                  <td className="px-4 py-3">{t("reports.common.total")}</td>
                   {BUCKETS.map((b) => (
                     <td key={b} className="px-4 py-3 text-right font-mono">
-                      {fmt(data.totals[b])}
+                      {formatCurrency(Number(data.totals[b]), locale)}
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-right font-mono">{fmt(data.totals.total)}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {formatCurrency(Number(data.totals.total), locale)}
+                  </td>
                 </tr>
               </tfoot>
             ) : null}
@@ -102,10 +118,6 @@ function Td({ children, className = "" }: { children: React.ReactNode; className
   return <td className={`px-4 py-2 ${className}`}>{children}</td>;
 }
 
-function fmt(s: string): string {
-  const n = Number(s);
-  return Number.isFinite(n) ? n.toFixed(2) : s;
-}
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }

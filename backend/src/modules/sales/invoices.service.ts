@@ -11,6 +11,7 @@ import { DocumentSequenceService } from "../../common/services/document-sequence
 import { DecimalUtil } from "../../common/utils/decimal.helper";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditAction, AuditEntityType, AuditService } from "../audit/audit.service";
+import { FiscalizationService } from "../fiscalization/fiscalization.service";
 import { CreateInvoiceDto, CreateInvoiceLineDto } from "./dto/create-invoice.dto";
 import { InvoiceFilterDto } from "./dto/invoice-filter.dto";
 import { UpdateInvoiceDto } from "./dto/update-invoice.dto";
@@ -22,6 +23,7 @@ export class InvoicesService {
     private readonly prisma: PrismaService,
     private readonly docSeq: DocumentSequenceService,
     private readonly audit: AuditService,
+    private readonly fiscalization: FiscalizationService,
   ) {}
 
   // ===================================================================
@@ -193,7 +195,7 @@ export class InvoicesService {
   // ===================================================================
 
   async issue(companyId: string, id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const issued = await this.prisma.$transaction(async (tx) => {
       // 1. Load invoice with lines + tax rates.
       const invoice = await tx.invoice.findFirst({
         where: { id, companyId },
@@ -378,6 +380,11 @@ export class InvoicesService {
 
       return issued;
     });
+
+    // Best-effort, post-commit: create a PENDING fiscal coupon when
+    // fiscalization is enabled. Never blocks issuing — see FISCALIZATION.md.
+    await this.fiscalization.onInvoiceIssued(companyId, issued.id);
+    return issued;
   }
 
   // ===================================================================
@@ -385,7 +392,7 @@ export class InvoicesService {
   // ===================================================================
 
   async void(companyId: string, id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const voided = await this.prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.findFirst({ where: { id, companyId } });
       if (!invoice) throw new NotFoundException("Invoice not found");
       if (
@@ -491,6 +498,10 @@ export class InvoicesService {
 
       return voided;
     });
+
+    // Best-effort, post-commit: mark any fiscal coupon for this invoice voided.
+    await this.fiscalization.onInvoiceVoided(companyId, id);
+    return voided;
   }
 
   // ===================================================================

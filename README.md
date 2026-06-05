@@ -100,8 +100,21 @@ Idempotent — re-running wipes and re-seeds. Sign in at `/login` with any of:
 
 You'll find one company "Acme Trading SHPK" with 6 contacts, 4 catalog items, 6 invoices (DRAFT → VOID), 2 payments, and 3 journal entries.
 
+## Fiscalization (Kosovo / ATK)
+
+Sales fiscalization for Kosovo is built as a provider-abstracted module
+(`backend/src/modules/fiscalization/`): issued invoices can be turned into fiscal
+coupons (FCUIN + QR), configured per company under **Settings → Fiscalization**.
+Three channels ship — `NONE`, `MANUAL_EDI` (record FCUIN/QR from ATK's EDI portal,
+usable today), and `ATK_EFS` (certified-gateway integration point). The legal
+basis, data model, API, and the exact steps to go live with a certified ATK
+connection are documented in **`FISCALIZATION.md`**.
+
+Run `pnpm db:migrate` after pulling to apply the `fiscalization` migration.
+
 ## Docs
 
 - Product: `PRODUCT_BRIEF.md`
 - Implementation plan: `IMPLEMENTATION_PLAN.md`
 - Step 1 checklist: `STEP_1_PROGRESS.md`
+- **Fiscalization (Kosovo / ATK): `FISCALIZATION.md`**

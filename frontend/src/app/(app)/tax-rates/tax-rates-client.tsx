@@ -2,8 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
+import { useT } from "@/i18n/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +43,7 @@ const Schema = z.object({
 type Values = z.infer<typeof Schema>;
 
 export function TaxRatesClient() {
+  const t = useT();
   const { data, isLoading } = useTaxRates();
   const [showNew, setShowNew] = useState(false);
   const [editing, setEditing] = useState<TaxRate | null>(null);
@@ -56,7 +58,7 @@ export function TaxRatesClient() {
             setShowNew((v) => !v);
           }}
         >
-          {showNew ? "Cancel" : "+ New tax rate"}
+          {showNew ? t("common.cancel") : t("tax.newRateButton")}
         </Button>
       </div>
 
@@ -64,30 +66,31 @@ export function TaxRatesClient() {
         <RateForm onDone={() => setShowNew(false)} onCancel={() => setShowNew(false)} />
       ) : null}
 
-      {isLoading ? <p className="text-sm text-zinc-500">Loading…</p> : null}
+      {isLoading ? <p className="text-sm text-zinc-500">{t("common.loading")}</p> : null}
 
-      {(data ?? []).map((t) =>
-        editing?.id === t.id ? (
+      {(data ?? []).map((rate) =>
+        editing?.id === rate.id ? (
           <RateForm
-            key={t.id}
-            initial={t}
+            key={rate.id}
+            initial={rate}
             onDone={() => setEditing(null)}
             onCancel={() => setEditing(null)}
           />
         ) : (
-          <Card key={t.id}>
+          <Card key={rate.id}>
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
-                <Badge variant={t.isDefault ? "success" : "outline"}>{t.code}</Badge>
+                <Badge variant={rate.isDefault ? "success" : "outline"}>{rate.code}</Badge>
                 <div>
-                  <div className="font-medium">{t.name}</div>
+                  <div className="font-medium">{rate.name}</div>
                   <div className="text-xs text-zinc-500">
-                    {t.rate}% · {t.calculationType} · {t.scope}
+                    {rate.rate}% · {t(`enums.taxCalculationType.${rate.calculationType}`)} ·{" "}
+                    {t(`enums.taxScope.${rate.scope}`)}
                   </div>
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(t)}>
-                Edit
+              <Button size="sm" variant="ghost" onClick={() => setEditing(rate)}>
+                {t("tax.edit")}
               </Button>
             </CardContent>
           </Card>
@@ -95,7 +98,7 @@ export function TaxRatesClient() {
       )}
 
       {data && data.length === 0 ? (
-        <p className="text-sm text-zinc-500">No tax rates yet.</p>
+        <p className="text-sm text-zinc-500">{t("tax.empty")}</p>
       ) : null}
     </div>
   );
@@ -110,6 +113,7 @@ function RateForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const create = useCreateTaxRate();
   const update = useUpdateTaxRate(initial?.id ?? "");
   const deactivate = useDeactivateTaxRate();
@@ -120,7 +124,7 @@ function RateForm({
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
-    resolver: zodResolver(Schema),
+    resolver: zodResolver(Schema) as Resolver<Values>,
     defaultValues: {
       name: initial?.name ?? "",
       code: initial?.code ?? "",
@@ -138,30 +142,30 @@ function RateForm({
       else await create.mutateAsync(values);
       onDone();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("tax.saveFailed"));
     }
   });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{initial ? "Edit tax rate" : "New tax rate"}</CardTitle>
+        <CardTitle>{initial ? t("tax.editRate") : t("tax.newRate")}</CardTitle>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">{t("tax.nameLabel")}</Label>
               <Input id="name" invalid={!!errors.name} {...register("name")} />
               <FormError message={errors.name?.message} />
             </div>
             <div>
-              <Label htmlFor="code">Code *</Label>
+              <Label htmlFor="code">{t("tax.codeLabel")}</Label>
               <Input id="code" invalid={!!errors.code} {...register("code")} />
               <FormError message={errors.code?.message} />
             </div>
             <div>
-              <Label htmlFor="rate">Rate % *</Label>
+              <Label htmlFor="rate">{t("tax.rateLabel")}</Label>
               <Input
                 id="rate"
                 type="number"
@@ -178,24 +182,24 @@ function RateForm({
                 className="h-4 w-4"
                 {...register("isDefault")}
               />
-              <Label htmlFor="isDefault">Default</Label>
+              <Label htmlFor="isDefault">{t("tax.default")}</Label>
             </div>
             <div>
-              <Label htmlFor="calculationType">Calculation</Label>
+              <Label htmlFor="calculationType">{t("tax.calculation")}</Label>
               <Select id="calculationType" {...register("calculationType")}>
-                {TAX_CALCULATION_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {TAX_CALCULATION_TYPES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(o.label)}
                   </option>
                 ))}
               </Select>
             </div>
             <div>
-              <Label htmlFor="scope">Scope</Label>
+              <Label htmlFor="scope">{t("tax.scope")}</Label>
               <Select id="scope" {...register("scope")}>
-                {TAX_SCOPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {TAX_SCOPES.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(o.label)}
                   </option>
                 ))}
               </Select>
@@ -206,30 +210,28 @@ function RateForm({
 
           {initial ? (
             <div className="flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-900">
-              <span className="text-zinc-600 dark:text-zinc-400">
-                Deactivate — historical invoices still reference this rate.
-              </span>
+              <span className="text-zinc-600 dark:text-zinc-400">{t("tax.deactivateHint")}</span>
               <Button
                 type="button"
                 size="sm"
                 variant="danger"
                 onClick={async () => {
-                  if (!confirm("Deactivate this tax rate?")) return;
+                  if (!confirm(t("tax.deactivateConfirm"))) return;
                   await deactivate.mutateAsync(initial.id);
                   onDone();
                 }}
               >
-                Deactivate
+                {t("tax.deactivate")}
               </Button>
             </div>
           ) : null}
         </CardContent>
         <div className="flex justify-end gap-2 border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button type="submit" loading={isSubmitting || create.isPending || update.isPending}>
-            {initial ? "Save" : "Create"}
+            {initial ? t("common.save") : t("tax.create")}
           </Button>
         </div>
       </form>

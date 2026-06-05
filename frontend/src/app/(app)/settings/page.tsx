@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getActiveCompanyId } from "@/lib/session";
 import { serverFetch } from "@/lib/server-fetch";
 import type { UserCompanyAccessSummary } from "@/lib/types";
+import { getT } from "@/i18n/server";
 import { SettingsClient } from "./settings-client";
 
 export const metadata: Metadata = { title: "Settings — LiFa" };
@@ -13,6 +14,7 @@ export const metadata: Metadata = { title: "Settings — LiFa" };
  * after register), fall back to the default.
  */
 export default async function SettingsPage() {
+  const { t } = await getT();
   const [cookieCompanyId, companies] = await Promise.all([
     getActiveCompanyId(),
     serverFetch<UserCompanyAccessSummary[]>("/users/me/companies"),
@@ -30,9 +32,9 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Company settings</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("settings.title")}</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Profile, addresses, and activity codes for the active company.
+          {t("settings.description")}
         </p>
       </div>
       <SettingsClient companyId={activeId} />

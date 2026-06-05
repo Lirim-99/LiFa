@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { type Resolver, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,26 +17,30 @@ import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useLocale, useT } from "@/i18n/client";
+import { formatDate } from "@/i18n/format";
 import { useCompany, useUpdateCompany } from "@/lib/queries/companies";
 import { LEGAL_FORMS, type LegalForm } from "@/lib/types";
 
 const LEGAL_FORM_VALUES = LEGAL_FORMS.map((f) => f.value) as [LegalForm, ...LegalForm[]];
 
-const Schema = z.object({
-  legalName: z.string().min(1, "Required").max(255),
-  legalForm: z.enum(LEGAL_FORM_VALUES),
-  tradeName: z.string().max(255).optional().or(z.literal("")),
-  uinNui: z.string().max(50).optional().or(z.literal("")),
-  fiscalNumber: z.string().max(50).optional().or(z.literal("")),
-  vatNumber: z.string().max(50).optional().or(z.literal("")),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
-  phone: z.string().max(50).optional().or(z.literal("")),
-  website: z.string().max(255).optional().or(z.literal("")),
-  fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
-});
-type Values = z.infer<typeof Schema>;
-
 export function CompanyProfileForm({ companyId }: { companyId: string }) {
+  const t = useT();
+  const locale = useLocale();
+  const Schema = z.object({
+    legalName: z.string().min(1, t("common.required")).max(255),
+    legalForm: z.enum(LEGAL_FORM_VALUES),
+    tradeName: z.string().max(255).optional().or(z.literal("")),
+    uinNui: z.string().max(50).optional().or(z.literal("")),
+    fiscalNumber: z.string().max(50).optional().or(z.literal("")),
+    vatNumber: z.string().max(50).optional().or(z.literal("")),
+    email: z.string().email(t("settings.invalidEmail")).optional().or(z.literal("")),
+    phone: z.string().max(50).optional().or(z.literal("")),
+    website: z.string().max(255).optional().or(z.literal("")),
+    fiscalYearStartMonth: z.coerce.number().int().min(1).max(12),
+  });
+  type Values = z.infer<typeof Schema>;
+
   const { data: company, isLoading } = useCompany(companyId);
   const update = useUpdateCompany(companyId);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -47,7 +51,7 @@ export function CompanyProfileForm({ companyId }: { companyId: string }) {
     handleSubmit,
     reset,
     formState: { errors, isDirty, isSubmitting },
-  } = useForm<Values>({ resolver: zodResolver(Schema) });
+  } = useForm<Values>({ resolver: zodResolver(Schema) as Resolver<Values> });
 
   useEffect(() => {
     if (!company) return;
@@ -75,77 +79,77 @@ export function CompanyProfileForm({ companyId }: { companyId: string }) {
       // eslint-disable-next-line react-hooks/purity -- runs in event handler, not render
       setSavedAt(Date.now());
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save");
+      setSubmitError(err instanceof Error ? err.message : t("settings.failedToSave"));
     }
   });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>Legal identity, tax IDs, and contact info.</CardDescription>
+        <CardTitle>{t("settings.profile.title")}</CardTitle>
+        <CardDescription>{t("settings.profile.description")}</CardDescription>
       </CardHeader>
       <form onSubmit={onSubmit} noValidate>
         <CardContent className="space-y-4">
           {isLoading ? (
-            <p className="text-sm text-zinc-500">Loading…</p>
+            <p className="text-sm text-zinc-500">{t("common.loading")}</p>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="legalName">Legal name *</Label>
+                <Label htmlFor="legalName">{t("settings.profile.legalName")}</Label>
                 <Input id="legalName" invalid={!!errors.legalName} {...register("legalName")} />
                 <FormError message={errors.legalName?.message} />
               </div>
               <div>
-                <Label htmlFor="tradeName">Trade name</Label>
+                <Label htmlFor="tradeName">{t("settings.profile.tradeName")}</Label>
                 <Input id="tradeName" {...register("tradeName")} />
               </div>
               <div>
-                <Label htmlFor="legalForm">Legal form *</Label>
+                <Label htmlFor="legalForm">{t("settings.profile.legalForm")}</Label>
                 <Select id="legalForm" {...register("legalForm")}>
                   {LEGAL_FORMS.map((f) => (
                     <option key={f.value} value={f.value}>
-                      {f.label}
+                      {t(f.label)}
                     </option>
                   ))}
                 </Select>
               </div>
               <div>
-                <Label htmlFor="fiscalYearStartMonth">Fiscal year starts</Label>
+                <Label htmlFor="fiscalYearStartMonth">{t("settings.profile.fiscalYearStarts")}</Label>
                 <Select
                   id="fiscalYearStartMonth"
                   {...register("fiscalYearStartMonth", { valueAsNumber: true })}
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                     <option key={m} value={m}>
-                      {new Date(2026, m - 1, 1).toLocaleString("en", { month: "long" })}
+                      {t(`common.monthLong.${m}`)}
                     </option>
                   ))}
                 </Select>
               </div>
               <div>
-                <Label htmlFor="uinNui">UIN / NUI (ARBK)</Label>
+                <Label htmlFor="uinNui">{t("settings.profile.uinNui")}</Label>
                 <Input id="uinNui" {...register("uinNui")} />
               </div>
               <div>
-                <Label htmlFor="fiscalNumber">Fiscal number (TAK)</Label>
+                <Label htmlFor="fiscalNumber">{t("settings.profile.fiscalNumber")}</Label>
                 <Input id="fiscalNumber" {...register("fiscalNumber")} />
               </div>
               <div>
-                <Label htmlFor="vatNumber">VAT number</Label>
+                <Label htmlFor="vatNumber">{t("settings.profile.vatNumber")}</Label>
                 <Input id="vatNumber" {...register("vatNumber")} />
               </div>
               <div>
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("common.email")}</Label>
                 <Input id="email" type="email" invalid={!!errors.email} {...register("email")} />
                 <FormError message={errors.email?.message} />
               </div>
               <div>
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">{t("settings.profile.phone")}</Label>
                 <Input id="phone" {...register("phone")} />
               </div>
               <div>
-                <Label htmlFor="website">Website</Label>
+                <Label htmlFor="website">{t("settings.profile.website")}</Label>
                 <Input id="website" placeholder="https://" {...register("website")} />
               </div>
             </div>
@@ -154,10 +158,18 @@ export function CompanyProfileForm({ companyId }: { companyId: string }) {
         </CardContent>
         <CardFooter className="justify-between">
           <span className="text-sm text-zinc-500">
-            {savedAt ? `Saved ${new Date(savedAt).toLocaleTimeString()}` : ""}
+            {savedAt
+              ? t("settings.profile.savedAt", {
+                  time: formatDate(savedAt, locale, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  }),
+                })
+              : ""}
           </span>
           <Button type="submit" loading={isSubmitting || update.isPending} disabled={!isDirty}>
-            Save changes
+            {t("settings.profile.saveChanges")}
           </Button>
         </CardFooter>
       </form>
