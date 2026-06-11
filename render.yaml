@@ -1,0 +1,33 @@
+# Render Blueprint for the LiFa backend (NestJS API).
+# Frontend is deployed separately on Vercel; database on Neon. See DEPLOY.md.
+#
+# Free tier note: Render's free plan has no Pre-Deploy hook, so Prisma
+# `migrate deploy` + the base seed (roles + tax templates, both idempotent) run
+# at the END of the build command. The demo company + users are a ONE-TIME
+# manual step — see DEPLOY.md (don't auto-run it; it wipes & recreates demo data).
+
+services:
+  - type: web
+    name: lifa-backend
+    runtime: node
+    plan: free
+    region: frankfurt # closest Render region to Kosovo
+    rootDir: .
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter backend db:generate &&
+      pnpm --filter backend build &&
+      pnpm --filter backend db:deploy
+    startCommand: pnpm --filter backend start:prod
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false # paste your Neon connection string (with ?sslmode=require)
+      - key: JWT_SECRET
+        generateValue: true # Render generates a strong random secret
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 1h
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d

@@ -11,7 +11,8 @@
  * and the demo company's legal name.
  *
  * What it creates:
- *   - 3 users: owner / accountant / viewer  (password: Sup3rSecret!)
+ *   - 5 users: owner / accountant / viewer / admin (Lirim Hasani) /
+ *     accountant (Faton Qerimi)  (password: Sup3rSecret!)
  *   - 1 SHPK company with full default setup (CoA, periods, tax rates,
  *     account defaults — handled by CompaniesService.create)
  *   - 6 contacts (3 customers, 2 vendors, 1 both)
@@ -42,6 +43,8 @@ const DEMO_USERS = {
   owner: { email: "owner@lifa.demo", firstName: "Lirim", lastName: "Hoxha" },
   accountant: { email: "accountant@lifa.demo", firstName: "Arta", lastName: "Krasniqi" },
   viewer: { email: "viewer@lifa.demo", firstName: "Vali", lastName: "Berisha" },
+  admin: { email: "lirim.hasani@lifa.demo", firstName: "Lirim", lastName: "Hasani" },
+  accountant2: { email: "faton.qerimi@lifa.demo", firstName: "Faton", lastName: "Qerimi" },
 } as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -126,9 +129,28 @@ async function main() {
 // --------------------------------------------------------------------------
 
 async function cleanup(prisma: PrismaService) {
-  // Demo company deletes its dependent rows via the CASCADE FKs in the schema.
-  // After that, no User FK still points at the demo users → safe to delete them.
-  await prisma.company.deleteMany({ where: { legalName: COMPANY_NAME } });
+  // Several FKs into `accounts` / journal entries are RESTRICT (not cascade):
+  // journal_entry_lines.account_id, invoice_lines.{income_account,tax_rate,
+  // product}_id, account_defaults.account_id, invoice/payment.*_journal_entry_id
+  // and accounts.parent_account_id (self). A bare company delete relies on
+  // Postgres cascade ordering across branches, which isn't guaranteed — so we
+  // delete the transactional rows explicitly in dependency order first, then
+  // let the company delete cascade the rest (periods, tax rates, contacts,
+  // catalog, addresses, activity codes, sequences, audit logs, access, config).
+  const company = await prisma.company.findFirst({
+    where: { legalName: COMPANY_NAME },
+    select: { id: true },
+  });
+  if (company) {
+    const companyId = company.id;
+    await prisma.payment.deleteMany({ where: { companyId } }); // → allocations
+    await prisma.invoice.deleteMany({ where: { companyId } }); // → lines, fiscal coupons
+    await prisma.journalEntry.deleteMany({ where: { companyId } }); // → lines
+    await prisma.companyAccountDefaults.deleteMany({ where: { companyId } });
+    await prisma.account.updateMany({ where: { companyId }, data: { parentAccountId: null } });
+    await prisma.account.deleteMany({ where: { companyId } });
+    await prisma.company.delete({ where: { id: companyId } });
+  }
 
   const demoEmails = Object.values(DEMO_USERS).map((u) => u.email);
   // If a demo user is still referenced (e.g. they created a non-demo company),
@@ -158,17 +180,29 @@ async function createUsers(prisma: PrismaService) {
   const viewer = await prisma.user.create({
     data: { ...DEMO_USERS.viewer, passwordHash },
   });
-  return { owner, accountant, viewer };
+  const admin = await prisma.user.create({
+    data: { ...DEMO_USERS.admin, passwordHash },
+  });
+  const accountant2 = await prisma.user.create({
+    data: { ...DEMO_USERS.accountant2, passwordHash },
+  });
+  return { owner, accountant, viewer, admin, accountant2 };
 }
 
 async function grantAccess(
   prisma: PrismaService,
   companyId: string,
-  users: { accountant: { id: string }; viewer: { id: string } },
+  users: {
+    accountant: { id: string };
+    viewer: { id: string };
+    admin: { id: string };
+    accountant2: { id: string };
+  },
 ) {
-  const [accountantRole, viewerRole] = await Promise.all([
+  const [accountantRole, viewerRole, adminRole] = await Promise.all([
     prisma.role.findUniqueOrThrow({ where: { code: "accountant" } }),
     prisma.role.findUniqueOrThrow({ where: { code: "viewer" } }),
+    prisma.role.findUniqueOrThrow({ where: { code: "admin" } }),
   ]);
   await prisma.userCompanyAccess.create({
     data: {
@@ -180,6 +214,13 @@ async function grantAccess(
   });
   await prisma.userCompanyAccess.create({
     data: { userId: users.viewer.id, companyId, roleId: viewerRole.id, isDefault: true },
+  });
+  // Lirim Hasani — admin; Faton Qerimi — accountant.
+  await prisma.userCompanyAccess.create({
+    data: { userId: users.admin.id, companyId, roleId: adminRole.id, isDefault: true },
+  });
+  await prisma.userCompanyAccess.create({
+    data: { userId: users.accountant2.id, companyId, roleId: accountantRole.id, isDefault: true },
   });
 }
 
