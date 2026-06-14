@@ -1906,4 +1906,31 @@ Step 24  Deployment
 
 ---
 
+## Post-MVP Roadmap — toward QuickBooks-style breadth (Steps 25+)
+
+The MVP (Steps 1–24) is complete and deployed (Vercel + Render + Neon). The
+following phases extend LiFa into a fuller small-business product. Each phase =
+backend module + Prisma migration + frontend + i18n (sq/en) + verification,
+shipped through the existing pipeline.
+
+- **Step 25 — Phase 1: Purchases / Accounts Payable** ✅ _Done._
+  Vendor `Bill` (DRAFT → OPEN → PARTIALLY_PAID → PAID → VOID), posting that
+  DEBITs expense + input VAT (`VAT Receivable`) and CREDITs `Accounts Payable`,
+  bill payments via `PaymentType.MADE` (reusing the Payments module with
+  `PaymentAllocation.billId`), and an **AP aging** report. New account roles
+  `ACCOUNTS_PAYABLE` / `VAT_RECEIVABLE` / `EXPENSE` + default accounts
+  `1400 VAT Receivable`, `5900 Other Expenses`. Module: `src/modules/purchases`.
+- **Step 26 — Phase 2: Document delivery** — invoice & bill **PDF** + print +
+  email; sent/viewed status.
+- **Step 27 — Phase 3: Banking** — bank/cash accounts, **CSV statement import**,
+  match-to-payment/bill suggestions, reconciliation, transfers.
+- **Step 28 — Phase 4: VAT & fiscalization** — VAT return report (output − input
+  VAT) and the live ATK `ATK_EFS` fiscalization adapter (see `FISCALIZATION.md`).
+- **Step 29 — Phase 5: Sales/purchase extras** — estimates/quotes → invoice,
+  credit notes / vendor credits, recurring invoices, customer statements.
+- **Step 30 — Phase 6: Inventory + advanced** — stock qty + COGS, multi-currency,
+  budgets, classes/locations, cash-flow & sales-by-item/customer reports.
+
+---
+
 _End of implementation plan._

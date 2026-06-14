@@ -12,11 +12,18 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
-import { PaymentMethod } from "@prisma/client";
+import { PaymentMethod, PaymentType } from "@prisma/client";
 
 export class CreatePaymentAllocationDto {
+  // Exactly one of invoiceId / billId, matching the payment type
+  // (RECEIVED → invoiceId, MADE → billId). Enforced in the service.
+  @IsOptional()
   @IsUUID()
-  invoiceId!: string;
+  invoiceId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  billId?: string;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 4 })
@@ -27,6 +34,11 @@ export class CreatePaymentAllocationDto {
 export class CreatePaymentDto {
   @IsUUID()
   contactId!: string;
+
+  // RECEIVED (customer pays our invoice) — default — or MADE (we pay a vendor bill).
+  @IsOptional()
+  @IsEnum(PaymentType)
+  paymentType?: PaymentType;
 
   @IsEnum(PaymentMethod)
   paymentMethod!: PaymentMethod;

@@ -68,6 +68,9 @@ export class PaymentsService {
             invoice: {
               select: { id: true, invoiceNumber: true, totalAmount: true, balanceDue: true },
             },
+            bill: {
+              select: { id: true, billNumber: true, totalAmount: true, balanceDue: true },
+            },
           },
         },
         contact: { select: { id: true, displayName: true, email: true } },
@@ -90,6 +93,10 @@ export class PaymentsService {
       );
     }
 
+    if ((dto.paymentType ?? "RECEIVED") === "MADE") {
+      return this.createBillPayment(companyId, dto, userId);
+    }
+
     return this.prisma.$transaction(async (tx) => {
       // 1. Validate contact = active customer of this company.
       const contact = await tx.contact.findFirst({
@@ -100,7 +107,10 @@ export class PaymentsService {
       }
 
       // 2. Load + validate invoices.
-      const invoiceIds = dto.allocations.map((a) => a.invoiceId);
+      const invoiceIds = dto.allocations.map((a) => a.invoiceId).filter((x): x is string => !!x);
+      if (invoiceIds.length !== dto.allocations.length) {
+        throw new BadRequestException("Each allocation must reference an invoiceId");
+      }
       const invoices = await tx.invoice.findMany({
         where: { id: { in: invoiceIds }, companyId },
       });
@@ -287,24 +297,39 @@ export class PaymentsService {
         throw new InternalServerErrorException("Recorded payment missing posted_journal_entry_id");
       }
 
-      // 1. Reverse each active allocation: restore invoice balances + soft-void.
+      // 1. Reverse each active allocation: restore invoice/bill balances + soft-void.
       for (const alloc of payment.allocations) {
-        const invoice = await tx.invoice.findUnique({ where: { id: alloc.invoiceId } });
-        if (!invoice) {
-          throw new InternalServerErrorException(`Invoice ${alloc.invoiceId} missing`);
+        if (alloc.invoiceId) {
+          const invoice = await tx.invoice.findUnique({ where: { id: alloc.invoiceId } });
+          if (!invoice) {
+            throw new InternalServerErrorException(`Invoice ${alloc.invoiceId} missing`);
+          }
+          const newPaid = DecimalUtil.subtract(invoice.paidAmount, alloc.allocatedAmount);
+          const newBalance = DecimalUtil.add(invoice.balanceDue, alloc.allocatedAmount);
+          let newStatus = invoice.status;
+          if (invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID") {
+            newStatus = DecimalUtil.isZero(newPaid) ? "ISSUED" : "PARTIALLY_PAID";
+          }
+          await tx.invoice.update({
+            where: { id: invoice.id },
+            data: { paidAmount: newPaid, balanceDue: newBalance, status: newStatus },
+          });
+        } else if (alloc.billId) {
+          const bill = await tx.bill.findUnique({ where: { id: alloc.billId } });
+          if (!bill) {
+            throw new InternalServerErrorException(`Bill ${alloc.billId} missing`);
+          }
+          const newPaid = DecimalUtil.subtract(bill.paidAmount, alloc.allocatedAmount);
+          const newBalance = DecimalUtil.add(bill.balanceDue, alloc.allocatedAmount);
+          let newStatus = bill.status;
+          if (bill.status === "PAID" || bill.status === "PARTIALLY_PAID") {
+            newStatus = DecimalUtil.isZero(newPaid) ? "OPEN" : "PARTIALLY_PAID";
+          }
+          await tx.bill.update({
+            where: { id: bill.id },
+            data: { paidAmount: newPaid, balanceDue: newBalance, status: newStatus },
+          });
         }
-        const newPaid = DecimalUtil.subtract(invoice.paidAmount, alloc.allocatedAmount);
-        const newBalance = DecimalUtil.add(invoice.balanceDue, alloc.allocatedAmount);
-        // Don't change status if the invoice itself was voided meanwhile; otherwise
-        // recompute from paid amount.
-        let newStatus = invoice.status;
-        if (invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID") {
-          newStatus = DecimalUtil.isZero(newPaid) ? "ISSUED" : "PARTIALLY_PAID";
-        }
-        await tx.invoice.update({
-          where: { id: invoice.id },
-          data: { paidAmount: newPaid, balanceDue: newBalance, status: newStatus },
-        });
         await tx.paymentAllocation.update({
           where: { id: alloc.id },
           data: { isVoided: true, voidedAt: new Date() },
@@ -398,6 +423,175 @@ export class PaymentsService {
       );
 
       return voided;
+    });
+  }
+
+  // ===================================================================
+  // MADE — we pay one or more vendor bills (DEBIT AP, CREDIT cash/bank)
+  // ===================================================================
+
+  private async createBillPayment(companyId: string, dto: CreatePaymentDto, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const contact = await tx.contact.findFirst({
+        where: { id: dto.contactId, companyId, isVendor: true, isActive: true },
+      });
+      if (!contact) {
+        throw new BadRequestException("Contact not found or is not an active vendor");
+      }
+
+      const billIds = dto.allocations.map((a) => a.billId).filter((x): x is string => !!x);
+      if (billIds.length !== dto.allocations.length) {
+        throw new BadRequestException("Each allocation must reference a billId");
+      }
+      const bills = await tx.bill.findMany({ where: { id: { in: billIds }, companyId } });
+      if (bills.length !== new Set(billIds).size) {
+        throw new BadRequestException("One or more bills not found in this company");
+      }
+      for (const alloc of dto.allocations) {
+        const bill = bills.find((b) => b.id === alloc.billId);
+        if (!bill) throw new BadRequestException(`Bill ${alloc.billId} not found`);
+        if (bill.contactId !== dto.contactId) {
+          throw new BadRequestException(`Bill ${bill.billNumber} belongs to a different vendor`);
+        }
+        if (bill.status !== "OPEN" && bill.status !== "PARTIALLY_PAID") {
+          throw new BadRequestException(
+            `Bill ${bill.billNumber} cannot accept payment (status ${bill.status})`,
+          );
+        }
+        if (DecimalUtil.from(alloc.allocatedAmount).gt(bill.balanceDue)) {
+          throw new BadRequestException(
+            `Allocation to bill ${bill.billNumber} exceeds balance due`,
+          );
+        }
+      }
+
+      const period = await tx.accountingPeriod.findFirst({
+        where: {
+          companyId,
+          startDate: { lte: dto.paymentDate },
+          endDate: { gte: dto.paymentDate },
+          status: "OPEN",
+        },
+      });
+      if (!period) {
+        throw new BadRequestException(
+          `No open accounting period contains payment date ${dto.paymentDate.toISOString().slice(0, 10)}`,
+        );
+      }
+
+      const apAccountId = await this.lookupAccountDefault(
+        tx,
+        companyId,
+        AccountRole.ACCOUNTS_PAYABLE,
+      );
+      const payingRole = dto.paymentMethod === "CASH" ? AccountRole.CASH : AccountRole.BANK;
+      const payingAccountId = await this.lookupAccountDefault(tx, companyId, payingRole);
+
+      const payment = await tx.payment.create({
+        data: {
+          companyId,
+          createdBy: userId,
+          contactId: dto.contactId,
+          paymentType: "MADE",
+          paymentMethod: dto.paymentMethod,
+          paymentDate: dto.paymentDate,
+          totalAmount: dto.totalAmount,
+          referenceNumber: dto.referenceNumber,
+          notes: dto.notes,
+          status: "RECORDED",
+        },
+      });
+
+      for (const alloc of dto.allocations) {
+        await tx.paymentAllocation.create({
+          data: {
+            paymentId: payment.id,
+            billId: alloc.billId,
+            allocatedAmount: alloc.allocatedAmount,
+            allocationDate: dto.paymentDate,
+            createdBy: userId,
+          },
+        });
+        const bill = bills.find((b) => b.id === alloc.billId);
+        if (!bill) throw new InternalServerErrorException("bill lookup lost");
+        const newPaid = DecimalUtil.add(bill.paidAmount, alloc.allocatedAmount);
+        const newBalance = DecimalUtil.subtract(bill.totalAmount, newPaid);
+        const newStatus = DecimalUtil.isZero(newBalance) ? "PAID" : "PARTIALLY_PAID";
+        await tx.bill.update({
+          where: { id: bill.id },
+          data: { paidAmount: newPaid, balanceDue: newBalance, status: newStatus },
+        });
+      }
+
+      const journal = await tx.journalEntry.create({
+        data: {
+          companyId,
+          createdBy: userId,
+          entryDate: dto.paymentDate,
+          sourceDocumentType: "PAYMENT",
+          sourceDocumentId: payment.id,
+          memo: `Payment to ${contact.displayName}`,
+          status: "POSTED",
+          postedAt: new Date(),
+          postedBy: userId,
+          periodId: period.id,
+        },
+      });
+      const entryNumber = await this.docSeq.nextNumber(
+        tx,
+        companyId,
+        DocumentType.JOURNAL_ENTRY,
+        period.fiscalYear,
+      );
+      await tx.journalEntry.update({ where: { id: journal.id }, data: { entryNumber } });
+
+      // DEBIT Accounts Payable, CREDIT cash/bank.
+      const lines: Prisma.JournalEntryLineCreateManyInput[] = [
+        {
+          journalEntryId: journal.id,
+          lineNumber: 1,
+          accountId: apAccountId,
+          description: `Payment ${dto.referenceNumber ?? payment.id}`,
+          debitAmount: dto.totalAmount,
+          creditAmount: 0,
+          contactId: dto.contactId,
+        },
+        {
+          journalEntryId: journal.id,
+          lineNumber: 2,
+          accountId: payingAccountId,
+          description: `Payment ${dto.referenceNumber ?? payment.id}`,
+          debitAmount: 0,
+          creditAmount: dto.totalAmount,
+          contactId: dto.contactId,
+        },
+      ];
+      await tx.journalEntryLine.createMany({ data: lines });
+
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: { postedJournalEntryId: journal.id },
+      });
+
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          entityType: AuditEntityType.PAYMENT,
+          entityId: payment.id,
+          action: AuditAction.CREATED,
+          after: {
+            paymentType: "MADE",
+            totalAmount: dto.totalAmount,
+            paymentMethod: dto.paymentMethod,
+            allocations: dto.allocations.length,
+            entryNumber,
+          },
+        },
+        tx,
+      );
+
+      return tx.payment.findUnique({ where: { id: payment.id }, include: { allocations: true } });
     });
   }
 

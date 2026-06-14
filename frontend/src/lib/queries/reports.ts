@@ -133,3 +133,39 @@ export function useArAging(asOf: string) {
       apiFetch<ArAgingResponse>(asOf ? `/reports/ar-aging?asOf=${asOf}` : "/reports/ar-aging"),
   });
 }
+
+export interface ApAgingResponse {
+  asOf: string;
+  rows: {
+    contactId: string;
+    contactName: string;
+    current: string;
+    "1-30": string;
+    "31-60": string;
+    "61-90": string;
+    "91+": string;
+    total: string;
+    bills: {
+      billNumber: string;
+      dueDate: string;
+      balanceDue: string;
+      bucket: string;
+    }[];
+  }[];
+  totals: {
+    current: string;
+    "1-30": string;
+    "31-60": string;
+    "61-90": string;
+    "91+": string;
+    total: string;
+  };
+}
+
+export function useApAging(asOf: string) {
+  return useQuery({
+    queryKey: ["reports", "ap-aging", asOf],
+    queryFn: () =>
+      apiFetch<ApAgingResponse>(asOf ? `/reports/ap-aging?asOf=${asOf}` : "/reports/ap-aging"),
+  });
+}

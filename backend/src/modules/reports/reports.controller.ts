@@ -44,4 +44,10 @@ export class ReportsController {
   arAging(@CurrentCompany("companyId") companyId: string, @Query() q: ArAgingQueryDto) {
     return this.reports.arAging(companyId, q.asOf ?? new Date());
   }
+
+  @Get("ap-aging")
+  @RequirePermission("reports.read")
+  apAging(@CurrentCompany("companyId") companyId: string, @Query() q: ArAgingQueryDto) {
+    return this.reports.apAging(companyId, q.asOf ?? new Date());
+  }
 }

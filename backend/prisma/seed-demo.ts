@@ -20,6 +20,7 @@
  *   - 6 invoices spanning every status: DRAFT, ISSUED, ISSUED-overdue,
  *     PARTIALLY_PAID, PAID, VOID
  *   - 2 payments (one partial, one full)
+ *   - 3 vendor bills (one paid, one open/overdue, one draft) + a bill payment
  *   - 3 journal entries (2 posted, 1 draft)
  */
 
@@ -34,6 +35,7 @@ import { ContactsService } from "../src/modules/contacts/contacts.service";
 import { CatalogService } from "../src/modules/catalog/catalog.service";
 import { InvoicesService } from "../src/modules/sales/invoices.service";
 import { PaymentsService } from "../src/modules/payments/payments.service";
+import { BillsService } from "../src/modules/purchases/bills.service";
 import { JournalEntriesService } from "../src/modules/accounting/journal-entries.service";
 
 const PASSWORD = "Sup3rSecret!";
@@ -102,13 +104,17 @@ async function main() {
   log("Recording payments (one partial, one full)…");
   await recordPayments(app.get(PaymentsService), company.id, users.owner.id, invoiceList);
 
-  log("Creating manual journal entries (initial capital, petty cash, one draft)…");
-  await createJournalEntries(
-    app.get(JournalEntriesService),
+  log("Creating vendor bills (one paid, one open/overdue, one draft)…");
+  await createBills(
+    app.get(BillsService),
+    app.get(PaymentsService),
+    prisma,
     company.id,
     users.owner.id,
-    prisma,
   );
+
+  log("Creating manual journal entries (initial capital, petty cash, one draft)…");
+  await createJournalEntries(app.get(JournalEntriesService), company.id, users.owner.id, prisma);
 
   log("Adding a few addresses + activity codes for the company…");
   await createLegalProfile(prisma, company.id);
@@ -143,8 +149,9 @@ async function cleanup(prisma: PrismaService) {
   });
   if (company) {
     const companyId = company.id;
-    await prisma.payment.deleteMany({ where: { companyId } }); // → allocations
+    await prisma.payment.deleteMany({ where: { companyId } }); // → allocations (invoice + bill)
     await prisma.invoice.deleteMany({ where: { companyId } }); // → lines, fiscal coupons
+    await prisma.bill.deleteMany({ where: { companyId } }); // → bill lines (before journal entries)
     await prisma.journalEntry.deleteMany({ where: { companyId } }); // → lines
     await prisma.companyAccountDefaults.deleteMany({ where: { companyId } });
     await prisma.account.updateMany({ where: { companyId }, data: { parentAccountId: null } });
@@ -228,11 +235,7 @@ async function grantAccess(
 // Contacts
 // --------------------------------------------------------------------------
 
-async function createContacts(
-  contacts: ContactsService,
-  companyId: string,
-  userId: string,
-) {
+async function createContacts(contacts: ContactsService, companyId: string, userId: string) {
   const stationery = await contacts.create(
     companyId,
     {
@@ -547,7 +550,10 @@ async function recordPayments(
   payments: PaymentsService,
   companyId: string,
   userId: string,
-  invoices: { toPartial: { id: string; contactId: string; totalAmount: unknown }; toPaid: { id: string; contactId: string; totalAmount: unknown } },
+  invoices: {
+    toPartial: { id: string; contactId: string; totalAmount: unknown };
+    toPaid: { id: string; contactId: string; totalAmount: unknown };
+  },
 ) {
   // Partial: pay €1,000 on the consulting retainer (total ≈ €2,124).
   await payments.create(
@@ -722,6 +728,93 @@ async function createLegalProfile(prisma: PrismaService, companyId: string) {
       },
     ],
   });
+}
+
+// --------------------------------------------------------------------------
+// Bills (Accounts Payable): one paid, one open/overdue, one draft
+// --------------------------------------------------------------------------
+
+async function createBills(
+  bills: BillsService,
+  payments: PaymentsService,
+  prisma: PrismaService,
+  companyId: string,
+  userId: string,
+) {
+  const vendor = await prisma.contact.findFirst({
+    where: { companyId, isVendor: true, isActive: true },
+  });
+  const expense = await prisma.account.findFirst({
+    where: { companyId, accountType: "EXPENSE", isActive: true },
+    orderBy: { code: "asc" },
+  });
+  const tax = await prisma.taxRate.findFirst({
+    where: { companyId, rate: { gt: 0 } },
+    orderBy: { rate: "asc" },
+  });
+  if (!vendor || !expense || !tax) return;
+
+  const line = (description: string, unitPrice: number, quantity = 1) => ({
+    description,
+    quantity,
+    unitPrice,
+    taxRateId: tax.id,
+    expenseAccountId: expense.id,
+  });
+
+  // 1) Paid bill (posted, then fully paid).
+  const paid = await bills.create(
+    companyId,
+    {
+      contactId: vendor.id,
+      billNumber: "SUP-2026-001",
+      billDate: daysAgo(40),
+      dueDate: daysAgo(10),
+      lines: [line("Office rent", 300)],
+    },
+    userId,
+  );
+  const postedPaid = await bills.post(companyId, paid.id, userId);
+  await payments.create(
+    companyId,
+    {
+      contactId: vendor.id,
+      paymentType: "MADE",
+      paymentMethod: "BANK_TRANSFER",
+      paymentDate: daysAgo(8),
+      totalAmount: Number(postedPaid.totalAmount),
+      referenceNumber: "WIRE-77001",
+      allocations: [{ billId: paid.id, allocatedAmount: Number(postedPaid.totalAmount) }],
+    },
+    userId,
+  );
+
+  // 2) Open / overdue bill (posted, unpaid).
+  const open = await bills.create(
+    companyId,
+    {
+      contactId: vendor.id,
+      billNumber: "SUP-2026-002",
+      billDate: daysAgo(50),
+      dueDate: daysAgo(5),
+      lines: [line("Software subscription", 120)],
+    },
+    userId,
+  );
+  await bills.post(companyId, open.id, userId);
+
+  // 3) Draft bill (not posted).
+  await bills.create(
+    companyId,
+    {
+      contactId: vendor.id,
+      billNumber: "SUP-2026-003",
+      billDate: daysAgo(2),
+      dueDate: daysFromNow(28),
+      lines: [line("Stationery supplies", 8, 5)],
+    },
+    userId,
+  );
 }
 
 // --------------------------------------------------------------------------

@@ -327,6 +327,104 @@ export class ReportsService {
   }
 
   // ===================================================================
+  // AP Aging — outstanding vendor bills bucketed by age, grouped by vendor
+  // ===================================================================
+
+  async apAging(companyId: string, asOf: Date) {
+    const bills = await this.prisma.bill.findMany({
+      where: {
+        companyId,
+        status: { in: ["OPEN", "PARTIALLY_PAID"] },
+      },
+      select: {
+        id: true,
+        billNumber: true,
+        billDate: true,
+        dueDate: true,
+        totalAmount: true,
+        balanceDue: true,
+        contact: { select: { id: true, displayName: true } },
+      },
+    });
+
+    type Bucket = "current" | "1-30" | "31-60" | "61-90" | "91+";
+    const bucketize = (dueDate: Date): Bucket => {
+      const diffDays = Math.floor((asOf.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) return "current";
+      if (diffDays <= 30) return "1-30";
+      if (diffDays <= 60) return "31-60";
+      if (diffDays <= 90) return "61-90";
+      return "91+";
+    };
+
+    type ContactGroup = {
+      contactId: string;
+      contactName: string;
+      current: string;
+      "1-30": string;
+      "31-60": string;
+      "61-90": string;
+      "91+": string;
+      total: string;
+      bills: {
+        billNumber: string;
+        dueDate: string;
+        balanceDue: string;
+        bucket: Bucket;
+      }[];
+    };
+
+    const byContact = new Map<string, ContactGroup>();
+    for (const bill of bills) {
+      if (DecimalUtil.isZero(bill.balanceDue)) continue;
+      const bucket = bucketize(bill.dueDate);
+      const cid = bill.contact.id;
+      const group =
+        byContact.get(cid) ??
+        ({
+          contactId: cid,
+          contactName: bill.contact.displayName,
+          current: "0",
+          "1-30": "0",
+          "31-60": "0",
+          "61-90": "0",
+          "91+": "0",
+          total: "0",
+          bills: [],
+        } as ContactGroup);
+      group[bucket] = DecimalUtil.toString(DecimalUtil.add(group[bucket], bill.balanceDue));
+      group.total = DecimalUtil.toString(DecimalUtil.add(group.total, bill.balanceDue));
+      group.bills.push({
+        billNumber: bill.billNumber,
+        dueDate: bill.dueDate.toISOString().slice(0, 10),
+        balanceDue: DecimalUtil.toString(bill.balanceDue),
+        bucket,
+      });
+      byContact.set(cid, group);
+    }
+
+    const rows = Array.from(byContact.values()).sort((a, b) =>
+      a.contactName.localeCompare(b.contactName),
+    );
+    const totals = rows.reduce(
+      (acc, r) => {
+        for (const b of ["current", "1-30", "31-60", "61-90", "91+"] as Bucket[]) {
+          acc[b] = DecimalUtil.toString(DecimalUtil.add(acc[b], r[b]));
+        }
+        acc.total = DecimalUtil.toString(DecimalUtil.add(acc.total, r.total));
+        return acc;
+      },
+      { current: "0", "1-30": "0", "31-60": "0", "61-90": "0", "91+": "0", total: "0" },
+    );
+
+    return {
+      asOf: asOf.toISOString().slice(0, 10),
+      rows,
+      totals,
+    };
+  }
+
+  // ===================================================================
   // Helper — per-account totals signed by the account's normal balance
   // ===================================================================
 

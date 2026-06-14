@@ -310,6 +310,56 @@ export interface Invoice {
   contact?: { id: string; displayName: string; email?: string | null };
 }
 
+// --- Purchases / Accounts Payable (Phase 1) ---
+
+export const BILL_STATUSES = [
+  { value: "DRAFT", label: "enums.billStatus.DRAFT" },
+  { value: "OPEN", label: "enums.billStatus.OPEN" },
+  { value: "PARTIALLY_PAID", label: "enums.billStatus.PARTIALLY_PAID" },
+  { value: "PAID", label: "enums.billStatus.PAID" },
+  { value: "VOID", label: "enums.billStatus.VOID" },
+] as const;
+export type BillStatus = (typeof BILL_STATUSES)[number]["value"];
+
+export interface BillLine {
+  id: string;
+  billId: string;
+  lineNumber: number;
+  productServiceId: string | null;
+  description: string | null;
+  quantity: string;
+  unitPrice: string;
+  discountType: DiscountType | null;
+  discountValue: string | null;
+  taxRateId: string | null;
+  netAmount: string;
+  taxAmount: string;
+  totalAmount: string;
+  expenseAccountId: string | null;
+}
+
+export interface Bill {
+  id: string;
+  companyId: string;
+  billNumber: string;
+  contactId: string;
+  billDate: string;
+  dueDate: string;
+  currency: string;
+  subtotalAmount: string;
+  taxAmount: string;
+  totalAmount: string;
+  paidAmount: string;
+  balanceDue: string;
+  status: BillStatus;
+  notes: string | null;
+  postedJournalEntryId: string | null;
+  voidedJournalEntryId: string | null;
+  createdAt: string;
+  lines?: BillLine[];
+  contact?: { id: string; displayName: string; email?: string | null };
+}
+
 export interface PaymentAllocation {
   id: string;
   paymentId: string;

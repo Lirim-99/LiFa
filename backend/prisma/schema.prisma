@@ -50,6 +50,9 @@ enum AccountRole {
   BANK
   VAT_PAYABLE
   SALES_REVENUE
+  ACCOUNTS_PAYABLE // Phase 1 (purchases/AP)
+  VAT_RECEIVABLE // input VAT on purchases
+  EXPENSE // default expense account for bill lines
 }
 
 enum ProductServiceType {
@@ -124,6 +127,15 @@ enum DiscountType {
   FIXED
 }
 
+// Phase 1 — Purchases / Accounts Payable. OPEN = posted, awaiting payment.
+enum BillStatus {
+  DRAFT
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
 // --- Fiscalization (Kosovo / ATK) — see FISCALIZATION.md ---
 
 enum FiscalProvider {
@@ -170,6 +182,7 @@ model User {
   createdInvoices  Invoice[]           @relation("InvoiceCreatedBy")
   createdPayments  Payment[]           @relation("PaymentCreatedBy")
   createdAllocs    PaymentAllocation[] @relation("AllocationCreatedBy")
+  createdBills     Bill[]              @relation("BillCreatedBy")
   auditLogs        AuditLog[]
 
   @@map("users")
@@ -240,6 +253,7 @@ model Company {
   periods           AccountingPeriod[]
   journalEntries    JournalEntry[]
   invoices          Invoice[]
+  bills             Bill[]
   payments          Payment[]
   documentSequences DocumentSequence[]
   auditLogs         AuditLog[]
@@ -332,6 +346,7 @@ model Contact {
   company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   creator           User               @relation("ContactCreatedBy", fields: [createdBy], references: [id])
   invoices          Invoice[]
+  bills             Bill[]
   payments          Payment[]
   journalEntryLines JournalEntryLine[]
 
@@ -369,6 +384,7 @@ model ProductService {
   expenseAccount Account?      @relation("ProductExpenseAccount", fields: [expenseAccountId], references: [id])
   defaultTaxRate TaxRate?      @relation(fields: [defaultTaxRateId], references: [id])
   invoiceLines   InvoiceLine[]
+  billLines      BillLine[]
 
   @@index([companyId])
   @@map("products_services")
@@ -397,6 +413,7 @@ model TaxRate {
   company          Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productsServices ProductService[]
   invoiceLines     InvoiceLine[]
+  billLines        BillLine[]
 
   @@index([companyId])
   @@map("tax_rates")
@@ -430,6 +447,7 @@ model Account {
   productsIncome     ProductService[]         @relation("ProductIncomeAccount")
   productsExpense    ProductService[]         @relation("ProductExpenseAccount")
   invoiceLinesIncome InvoiceLine[]
+  billLinesExpense   BillLine[]
   companyDefaults    CompanyAccountDefaults[]
 
   @@unique([companyId, code])
@@ -493,6 +511,8 @@ model JournalEntry {
   voidedInvoices  Invoice[]          @relation("InvoiceVoidedEntry")
   postedPayments  Payment[]          @relation("PaymentPostedEntry")
   voidedPayments  Payment[]          @relation("PaymentVoidedEntry")
+  postedBills     Bill[]             @relation("BillPostedEntry")
+  voidedBills     Bill[]             @relation("BillVoidedEntry")
 
   @@index([companyId])
   @@index([companyId, entryDate, status])
@@ -627,7 +647,10 @@ model Payment {
 model PaymentAllocation {
   id              String    @id @default(uuid()) @db.Uuid
   paymentId       String    @map("payment_id") @db.Uuid
-  invoiceId       String    @map("invoice_id") @db.Uuid
+  // Exactly one of invoiceId / billId is set (enforced in the service):
+  // RECEIVED payments allocate to invoices, MADE payments to bills.
+  invoiceId       String?   @map("invoice_id") @db.Uuid
+  billId          String?   @map("bill_id") @db.Uuid
   allocatedAmount Decimal   @map("allocated_amount") @db.Decimal(19, 4)
   allocationDate  DateTime  @map("allocation_date") @db.Date
   isVoided        Boolean   @default(false) @map("is_voided")
@@ -635,13 +658,81 @@ model PaymentAllocation {
   createdBy       String    @map("created_by") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at")
 
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
-  creator User    @relation("AllocationCreatedBy", fields: [createdBy], references: [id])
+  payment Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  bill    Bill?    @relation(fields: [billId], references: [id])
+  creator User     @relation("AllocationCreatedBy", fields: [createdBy], references: [id])
 
   @@index([paymentId])
   @@index([invoiceId])
+  @@index([billId])
   @@map("payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Purchases / Accounts Payable (Phase 1) — mirrors Sales/Invoice
+// ---------------------------------------------------------------------------
+
+model Bill {
+  id                   String     @id @default(uuid()) @db.Uuid
+  companyId            String     @map("company_id") @db.Uuid
+  billNumber           String     @map("bill_number") // the vendor's invoice number (user-entered)
+  contactId            String     @map("contact_id") @db.Uuid // vendor
+  billDate             DateTime   @map("bill_date") @db.Date
+  dueDate              DateTime   @map("due_date") @db.Date
+  currency             String     @default("EUR")
+  exchangeRate         Decimal    @default(1) @map("exchange_rate") @db.Decimal(19, 4)
+  subtotalAmount       Decimal    @default(0) @map("subtotal_amount") @db.Decimal(19, 4)
+  taxAmount            Decimal    @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount          Decimal    @default(0) @map("total_amount") @db.Decimal(19, 4)
+  paidAmount           Decimal    @default(0) @map("paid_amount") @db.Decimal(19, 4)
+  balanceDue           Decimal    @default(0) @map("balance_due") @db.Decimal(19, 4)
+  status               BillStatus @default(DRAFT)
+  notes                String?
+  postedJournalEntryId String?    @map("posted_journal_entry_id") @db.Uuid
+  voidedJournalEntryId String?    @map("voided_journal_entry_id") @db.Uuid
+  createdBy            String     @map("created_by") @db.Uuid
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator            User                @relation("BillCreatedBy", fields: [createdBy], references: [id])
+  contact            Contact             @relation(fields: [contactId], references: [id])
+  postedJournalEntry JournalEntry?       @relation("BillPostedEntry", fields: [postedJournalEntryId], references: [id])
+  voidedJournalEntry JournalEntry?       @relation("BillVoidedEntry", fields: [voidedJournalEntryId], references: [id])
+  lines              BillLine[]
+  paymentAllocations PaymentAllocation[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("bills")
+}
+
+model BillLine {
+  id               String        @id @default(uuid()) @db.Uuid
+  billId           String        @map("bill_id") @db.Uuid
+  lineNumber       Int           @map("line_number")
+  productServiceId String?       @map("product_service_id") @db.Uuid
+  description      String?
+  quantity         Decimal       @db.Decimal(19, 4)
+  unitPrice        Decimal       @map("unit_price") @db.Decimal(19, 4)
+  discountType     DiscountType? @map("discount_type")
+  discountValue    Decimal?      @map("discount_value") @db.Decimal(19, 4)
+  taxRateId        String?       @map("tax_rate_id") @db.Uuid
+  netAmount        Decimal       @default(0) @map("net_amount") @db.Decimal(19, 4)
+  taxAmount        Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount      Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
+  expenseAccountId String?       @map("expense_account_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  bill           Bill            @relation(fields: [billId], references: [id], onDelete: Cascade)
+  productService ProductService? @relation(fields: [productServiceId], references: [id])
+  taxRate        TaxRate?        @relation(fields: [taxRateId], references: [id])
+  expenseAccount Account?        @relation(fields: [expenseAccountId], references: [id])
+
+  @@index([billId])
+  @@map("bill_lines")
 }
 
 // ---------------------------------------------------------------------------

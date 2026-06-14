@@ -10,6 +10,7 @@ import {
   Cog6ToothIcon,
   DocumentTextIcon,
   HomeIcon,
+  InboxArrowDownIcon,
   ReceiptPercentIcon,
   ShoppingBagIcon,
   Squares2X2Icon,
@@ -39,6 +40,10 @@ const SECTIONS: { labelKey: string; items: NavItem[] }[] = [
     ],
   },
   {
+    labelKey: "nav.sections.purchases",
+    items: [{ href: "/bills", labelKey: "nav.items.bills", icon: InboxArrowDownIcon }],
+  },
+  {
     labelKey: "nav.sections.catalogTax",
     items: [
       { href: "/products-services", labelKey: "nav.items.products", icon: ShoppingBagIcon },
@@ -65,6 +70,7 @@ const SECTIONS: { labelKey: string; items: NavItem[] }[] = [
       { href: "/reports/profit-and-loss", labelKey: "nav.items.profitAndLoss", icon: ChartBarIcon },
       { href: "/reports/balance-sheet", labelKey: "nav.items.balanceSheet", icon: ChartBarIcon },
       { href: "/reports/ar-aging", labelKey: "nav.items.arAging", icon: ClipboardDocumentListIcon },
+      { href: "/reports/ap-aging", labelKey: "nav.items.apAging", icon: ClipboardDocumentListIcon },
     ],
   },
   {

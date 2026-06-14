@@ -61,6 +61,7 @@
     "sections": {
       "overview": "Overview",
       "sales": "Sales",
+      "purchases": "Purchases",
       "catalogTax": "Catalog & Tax",
       "accounting": "Accounting",
       "reports": "Reports",
@@ -71,6 +72,8 @@
       "invoices": "Invoices",
       "payments": "Payments",
       "contacts": "Contacts",
+      "bills": "Bills",
+      "apAging": "AP aging",
       "products": "Products & services",
       "taxRates": "Tax rates",
       "accounts": "Chart of accounts",
@@ -158,6 +161,54 @@
     "confirmVoid": "Void this invoice? Posts a reversal journal entry.",
     "void": "Void",
     "subtotal": "Subtotal"
+  },
+  "bills": {
+    "title": "Purchase bills",
+    "description": "Vendor bills. Draft → Open (posted to Accounts Payable) → Paid → Void. Posting books the expense + input VAT and credits Accounts Payable.",
+    "newBill": "+ New bill",
+    "billNumber": "Bill no.",
+    "billDate": "Bill date",
+    "vendor": "Vendor",
+    "dueDate": "Due date",
+    "total": "Total",
+    "balance": "Balance",
+    "empty": "No bills.",
+    "billTitle": "Bill {number}",
+    "draftBill": "Draft bill",
+    "newBillTitle": "New bill",
+    "vendorRequired": "Vendor *",
+    "pickVendorOption": "— Select a vendor —",
+    "billNumberRequired": "Bill no. *",
+    "billDateRequired": "Bill date *",
+    "dueDateRequired": "Due date *",
+    "product": "Product",
+    "lineDescription": "Description",
+    "qty": "Qty",
+    "unitPrice": "Unit price",
+    "discount": "Discount",
+    "tax": "Tax",
+    "expenseAccount": "Expense account",
+    "useDefaultExpense": "use company default (Other Expenses)",
+    "overrideExpenseAccount": "Override expense account per line",
+    "addLine": "+ Add line",
+    "notes": "Notes",
+    "subtotal": "Subtotal",
+    "failedToSave": "Failed to save",
+    "failed": "Failed",
+    "confirmDeleteDraft": "Delete this draft bill?",
+    "deleteDraft": "Delete draft",
+    "createDraft": "Create draft",
+    "confirmPost": "Post this bill? Books the expense + input VAT and credits Accounts Payable.",
+    "post": "Post",
+    "confirmVoid": "Void this bill? Posts a reversal journal entry.",
+    "void": "Void",
+    "recordPayment": "Record payment",
+    "paymentAmount": "Amount to pay",
+    "paymentMethod": "Method",
+    "paymentDate": "Payment date",
+    "reference": "Reference",
+    "payFailed": "Failed to record payment",
+    "pay": "Pay"
   },
   "payments": {
     "title": "Payments",
@@ -438,6 +489,19 @@
         "b61to90": "61-90 days",
         "b91plus": "91+ days"
       }
+    },
+    "apAging": {
+      "title": "Accounts payable aging",
+      "description": "Outstanding vendor bill balances bucketed by age vs. due date, grouped by vendor.",
+      "vendor": "Vendor",
+      "empty": "No outstanding payables.",
+      "buckets": {
+        "current": "Current",
+        "b1to30": "1-30 days",
+        "b31to60": "31-60 days",
+        "b61to90": "61-90 days",
+        "b91plus": "91+ days"
+      }
     }
   },
   "settings": {
@@ -618,6 +682,13 @@
     "invoiceStatus": {
       "DRAFT": "Draft",
       "ISSUED": "Issued",
+      "PARTIALLY_PAID": "Partially paid",
+      "PAID": "Paid",
+      "VOID": "Void"
+    },
+    "billStatus": {
+      "DRAFT": "Draft",
+      "OPEN": "Open",
       "PARTIALLY_PAID": "Partially paid",
       "PAID": "Paid",
       "VOID": "Void"

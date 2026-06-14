@@ -46,12 +46,13 @@ export function usePayment(id: string | undefined) {
 
 export interface CreatePaymentInput {
   contactId: string;
+  paymentType?: "RECEIVED" | "MADE";
   paymentMethod: "CASH" | "BANK_TRANSFER";
   paymentDate: string;
   totalAmount: number;
   referenceNumber?: string;
   notes?: string;
-  allocations: { invoiceId: string; allocatedAmount: number }[];
+  allocations: { invoiceId?: string; billId?: string; allocatedAmount: number }[];
 }
 
 export function useCreatePayment() {
@@ -62,6 +63,22 @@ export function useCreatePayment() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: paymentKeys.all });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/** Records a payment we MADE to a vendor, allocated to one or more bills. */
+export function useCreateBillPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreatePaymentInput) =>
+      apiFetch<Payment>("/payments", {
+        method: "POST",
+        body: JSON.stringify({ ...input, paymentType: "MADE" }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: paymentKeys.all });
+      void qc.invalidateQueries({ queryKey: ["bills"] });
     },
   });
 }

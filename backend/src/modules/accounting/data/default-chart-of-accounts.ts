@@ -43,6 +43,13 @@ export const DEFAULT_CHART_OF_ACCOUNTS: readonly DefaultAccount[] = [
     isSystem: true,
   },
   {
+    code: "1400",
+    name: "VAT Receivable",
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
+  },
+  {
     code: "1500",
     name: "Fixed Assets",
     accountType: AccountType.ASSET,
@@ -126,6 +133,13 @@ export const DEFAULT_CHART_OF_ACCOUNTS: readonly DefaultAccount[] = [
     accountType: AccountType.EXPENSE,
     normalBalance: NormalBalance.DEBIT,
   },
+  {
+    code: "5900",
+    name: "Other Expenses",
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
+  },
 ] as const;
 
 /**
@@ -138,4 +152,8 @@ export const DEFAULT_ACCOUNT_ROLE_CODES = {
   BANK: "1200",
   VAT_PAYABLE: "2200",
   SALES_REVENUE: "4100",
+  ACCOUNTS_PAYABLE: "2100",
+  VAT_RECEIVABLE: "1400",
+  EXPENSE: "5900",
 } as const;
+

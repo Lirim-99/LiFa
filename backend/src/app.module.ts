@@ -11,6 +11,7 @@ import { ContactsModule } from "./modules/contacts/contacts.module";
 import { FiscalizationModule } from "./modules/fiscalization/fiscalization.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
+import { PurchasesModule } from "./modules/purchases/purchases.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { TaxModule } from "./modules/tax/tax.module";
@@ -32,6 +33,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     AccountingModule,
     CatalogModule,
     SalesModule,
+    PurchasesModule,
     PaymentsModule,
     FiscalizationModule,
     ReportsModule,

@@ -61,6 +61,7 @@
     "sections": {
       "overview": "Përmbledhje",
       "sales": "Shitjet",
+      "purchases": "Blerjet",
       "catalogTax": "Katalogu & Tatimet",
       "accounting": "Kontabiliteti",
       "reports": "Raportet",
@@ -71,6 +72,8 @@
       "invoices": "Faturat",
       "payments": "Pagesat",
       "contacts": "Kontaktet",
+      "bills": "Faturat e blerjes",
+      "apAging": "Vjetërsimi i të pagueshmeve",
       "products": "Produkte & shërbime",
       "taxRates": "Normat tatimore",
       "accounts": "Plani kontabël",
@@ -158,6 +161,54 @@
     "confirmVoid": "Të anulohet kjo faturë? Poston një regjistrim kundërveprues në ditar.",
     "void": "Anulo",
     "subtotal": "Nëntotali"
+  },
+  "bills": {
+    "title": "Faturat e blerjes",
+    "description": "Faturat e furnitorëve. Skicë → E hapur (e postuar te të pagueshmet) → E paguar → E anuluar. Postimi regjistron shpenzimin + TVSH-në hyrëse dhe krediton Llogaritë e pagueshme.",
+    "newBill": "+ Faturë e re",
+    "billNumber": "Nr. i faturës",
+    "billDate": "Data e faturës",
+    "vendor": "Furnitori",
+    "dueDate": "Data e maturimit",
+    "total": "Gjithsej",
+    "balance": "Bilanci",
+    "empty": "Nuk ka fatura.",
+    "billTitle": "Fatura {number}",
+    "draftBill": "Faturë skicë",
+    "newBillTitle": "Faturë e re",
+    "vendorRequired": "Furnitori *",
+    "pickVendorOption": "— Zgjidhni një furnitor —",
+    "billNumberRequired": "Nr. i faturës *",
+    "billDateRequired": "Data e faturës *",
+    "dueDateRequired": "Data e maturimit *",
+    "product": "Produkti",
+    "lineDescription": "Përshkrimi",
+    "qty": "Sasia",
+    "unitPrice": "Çmimi për njësi",
+    "discount": "Zbritja",
+    "tax": "Tatimi",
+    "expenseAccount": "Llogaria e shpenzimeve",
+    "useDefaultExpense": "përdor parazgjedhjen e kompanisë (Shpenzime të tjera)",
+    "overrideExpenseAccount": "Mbishkruaj llogarinë e shpenzimeve për çdo rresht",
+    "addLine": "+ Shto rresht",
+    "notes": "Shënime",
+    "subtotal": "Nëntotali",
+    "failedToSave": "Ruajtja dështoi",
+    "failed": "Dështoi",
+    "confirmDeleteDraft": "Të fshihet kjo faturë skicë?",
+    "deleteDraft": "Fshi skicën",
+    "createDraft": "Krijo skicë",
+    "confirmPost": "Të postohet kjo faturë? Regjistron shpenzimin + TVSH-në hyrëse dhe krediton Llogaritë e pagueshme.",
+    "post": "Posto",
+    "confirmVoid": "Të anulohet kjo faturë? Poston një regjistrim kundërveprues në ditar.",
+    "void": "Anulo",
+    "recordPayment": "Regjistro pagesë",
+    "paymentAmount": "Shuma për t'u paguar",
+    "paymentMethod": "Metoda",
+    "paymentDate": "Data e pagesës",
+    "reference": "Referenca",
+    "payFailed": "Regjistrimi i pagesës dështoi",
+    "pay": "Paguaj"
   },
   "payments": {
     "title": "Pagesat",
@@ -438,6 +489,19 @@
         "b61to90": "61-90 ditë",
         "b91plus": "91+ ditë"
       }
+    },
+    "apAging": {
+      "title": "Vjetërsimi i të pagueshmeve",
+      "description": "Bilancet e papaguara të faturave të furnitorëve të grupuara sipas moshës kundrejt datës së maturimit, sipas furnitorit.",
+      "vendor": "Furnitori",
+      "empty": "Nuk ka të pagueshme të papaguara.",
+      "buckets": {
+        "current": "Aktuale",
+        "b1to30": "1-30 ditë",
+        "b31to60": "31-60 ditë",
+        "b61to90": "61-90 ditë",
+        "b91plus": "91+ ditë"
+      }
     }
   },
   "settings": {
@@ -618,6 +682,13 @@
     "invoiceStatus": {
       "DRAFT": "Skicë",
       "ISSUED": "E lëshuar",
+      "PARTIALLY_PAID": "E paguar pjesërisht",
+      "PAID": "E paguar",
+      "VOID": "E anuluar"
+    },
+    "billStatus": {
+      "DRAFT": "Skicë",
+      "OPEN": "E hapur",
       "PARTIALLY_PAID": "E paguar pjesërisht",
       "PAID": "E paguar",
       "VOID": "E anuluar"
