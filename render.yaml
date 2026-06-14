@@ -13,8 +13,9 @@ services:
     plan: free
     region: frankfurt # closest Render region to Kosovo
     rootDir: .
+    # Render already provides pnpm (packageManager field) — do NOT run
+    # `corepack enable` (it can't symlink into the read-only /usr/bin).
     buildCommand: >-
-      corepack enable &&
       pnpm install --frozen-lockfile &&
       pnpm --filter backend db:generate &&
       pnpm --filter backend build &&
@@ -23,6 +24,8 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: NODE_VERSION
+        value: "22.11.0" # pin to LTS — Render defaults to latest (Node 26+), which breaks native bcrypt/Prisma
       - key: DATABASE_URL
         sync: false # paste your Neon connection string (with ?sslmode=require)
       - key: JWT_SECRET

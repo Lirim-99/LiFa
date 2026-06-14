@@ -43,8 +43,9 @@ The repo ships a **`render.yaml`** Blueprint, so this is mostly clicks.
    Check `GET /health` → `{"status":"ok"}`.
 
 (No `render.yaml`? Create a **Web Service** manually with: Build =
-`corepack enable && pnpm install --frozen-lockfile && pnpm --filter backend db:generate && pnpm --filter backend build && pnpm --filter backend db:deploy`,
-Start = `pnpm --filter backend start:prod`, Health check = `/health`.)
+`pnpm install --frozen-lockfile && pnpm --filter backend db:generate && pnpm --filter backend build && pnpm --filter backend db:deploy`,
+Start = `pnpm --filter backend start:prod`, Health check = `/health`, and set
+`NODE_VERSION=22.11.0`.)
 
 ---
 
