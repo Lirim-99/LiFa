@@ -42,15 +42,28 @@ async function proxy(request: NextRequest, ctx: { params: Promise<{ path: string
   const response = await fetch(upstreamUrl, init);
 
   // Mirror status + body. Strip transfer-encoding / connection headers that
-  // would confuse the Edge runtime.
+  // would confuse the runtime. Crucially, `fetch` has already DECODED the
+  // upstream body (Render serves Brotli/gzip), so we must drop the stale
+  // content-encoding / content-length headers — otherwise the browser tries to
+  // re-decode plain bytes and the response body "terminates". We buffer the
+  // (small JSON) body rather than re-streaming it, which also avoids premature
+  // stream termination on serverless.
+  const buffer = await response.arrayBuffer();
   const respHeaders = new Headers();
   response.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (lower === "transfer-encoding" || lower === "connection") return;
+    if (
+      lower === "transfer-encoding" ||
+      lower === "connection" ||
+      lower === "content-encoding" ||
+      lower === "content-length"
+    ) {
+      return;
+    }
     respHeaders.set(key, value);
   });
 
-  return new NextResponse(response.body, {
+  return new NextResponse(buffer, {
     status: response.status,
     headers: respHeaders,
   });
