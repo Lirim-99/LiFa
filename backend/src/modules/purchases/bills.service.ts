@@ -11,6 +11,7 @@ import { DocumentSequenceService } from "../../common/services/document-sequence
 import { DecimalUtil } from "../../common/utils/decimal.helper";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditAction, AuditEntityType, AuditService } from "../audit/audit.service";
+import { InventoryService } from "../inventory/inventory.service";
 import { InvoiceCalc, type LineCalcOutput } from "../sales/invoice-calc.helper";
 import { CreateBillDto, CreateBillLineDto } from "./dto/create-bill.dto";
 import { BillFilterDto } from "./dto/bill-filter.dto";
@@ -28,6 +29,7 @@ export class BillsService {
     private readonly prisma: PrismaService,
     private readonly docSeq: DocumentSequenceService,
     private readonly audit: AuditService,
+    private readonly inventory: InventoryService,
   ) {}
 
   // ===================================================================
@@ -198,7 +200,7 @@ export class BillsService {
   // ===================================================================
 
   async post(companyId: string, id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const posted = await this.prisma.$transaction(async (tx) => {
       const bill = await tx.bill.findFirst({
         where: { id, companyId },
         include: {
@@ -333,7 +335,7 @@ export class BillsService {
         );
       }
 
-      const posted = await tx.bill.update({
+      const result = await tx.bill.update({
         where: { id: bill.id },
         data: {
           status: "OPEN",
@@ -359,8 +361,26 @@ export class BillsService {
         tx,
       );
 
-      return posted;
+      return result;
     });
+
+    // Best-effort: create GOODS_RECEIPT stock movements for product lines
+    await this.inventory.createDocumentMovements(companyId, userId, {
+      documentType: "BILL",
+      documentId: posted.id,
+      reference: posted.billNumber ?? posted.id,
+      movementType: "GOODS_RECEIPT",
+      movementDate: posted.billDate,
+      lines: posted.lines
+        .filter((l) => l.productServiceId)
+        .map((l) => ({
+          productServiceId: l.productServiceId!,
+          quantity: Number(l.quantity),
+          unitCost: Number(l.unitPrice),
+        })),
+    });
+
+    return posted;
   }
 
   // ===================================================================

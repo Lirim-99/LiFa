@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/client";
+import { downloadPdf } from "@/lib/download-pdf";
 import { useAccounts } from "@/lib/queries/accounts";
 import { useCatalog } from "@/lib/queries/catalog";
 import { useContacts } from "@/lib/queries/contacts";
@@ -403,6 +404,20 @@ export function InvoiceEditor({
                 loading={voidInv.isPending}
               >
                 {t("invoices.void")}
+              </Button>
+            ) : null}
+            {existing && existing.status !== "DRAFT" ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  downloadPdf(
+                    `/invoices/${existing.id}/pdf`,
+                    `${existing.invoiceNumber ?? "invoice"}.pdf`,
+                  )
+                }
+              >
+                PDF ↓
               </Button>
             ) : null}
           </div>

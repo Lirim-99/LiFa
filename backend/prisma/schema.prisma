@@ -120,6 +120,7 @@ enum JournalEntryStatus {
 enum DocumentType {
   INVOICE
   JOURNAL_ENTRY
+  CREDIT_NOTE
 }
 
 enum DiscountType {
@@ -133,6 +134,18 @@ enum BillStatus {
   OPEN
   PARTIALLY_PAID
   PAID
+  VOID
+}
+
+// Credit Notes — sales returns (reduce AR) or vendor credits (reduce AP).
+enum CreditNoteType {
+  SALES // reduces customer AR; reverses revenue
+  PURCHASE // reduces vendor AP; reverses expense
+}
+
+enum CreditNoteStatus {
+  DRAFT
+  ISSUED
   VOID
 }
 
@@ -183,7 +196,18 @@ model User {
   createdPayments  Payment[]           @relation("PaymentCreatedBy")
   createdAllocs    PaymentAllocation[] @relation("AllocationCreatedBy")
   createdBills     Bill[]              @relation("BillCreatedBy")
+  createdCreditNotes CreditNote[]    @relation("CreditNoteCreatedBy")
   auditLogs        AuditLog[]
+  createdWarehouses   Warehouse[]      @relation("WarehouseCreatedBy")
+  createdStockMovements StockMovement[] @relation("StockMovementCreatedBy")
+  posSessionsOpened   PosSession[]     @relation("PosSessionOpenedBy")
+  posSessionsClosed   PosSession[]     @relation("PosSessionClosedBy")
+  posSales            PosSale[]        @relation("PosSaleCreatedBy")
+  quotes              Quote[]          @relation("QuoteCreatedBy")
+  salesOrders         SalesOrder[]     @relation("SalesOrderCreatedBy")
+  employees           Employee[]       @relation("EmployeeCreatedBy")
+  payrollRuns         PayrollRun[]     @relation("PayrollRunCreatedBy")
+  fixedAssets         FixedAsset[]     @relation("FixedAssetCreatedBy")
 
   @@map("users")
 }
@@ -254,11 +278,23 @@ model Company {
   journalEntries    JournalEntry[]
   invoices          Invoice[]
   bills             Bill[]
+  creditNotes       CreditNote[]
   payments          Payment[]
   documentSequences DocumentSequence[]
   auditLogs         AuditLog[]
   fiscalConfig      CompanyFiscalConfig?
   fiscalCoupons     FiscalCoupon[]
+  warehouses        Warehouse[]
+  stockMovements    StockMovement[]
+  posRegisters      PosRegister[]
+  posSessions       PosSession[]
+  posSales          PosSale[]
+  quotes            Quote[]
+  salesOrders       SalesOrder[]
+  exchangeRates     ExchangeRate[]
+  employees         Employee[]
+  payrollRuns       PayrollRun[]
+  fixedAssets       FixedAsset[]
 
   @@map("companies")
 }
@@ -347,8 +383,11 @@ model Contact {
   creator           User               @relation("ContactCreatedBy", fields: [createdBy], references: [id])
   invoices          Invoice[]
   bills             Bill[]
+  creditNotes       CreditNote[]
   payments          Payment[]
   journalEntryLines JournalEntryLine[]
+  quotes            Quote[]
+  salesOrders       SalesOrder[]
 
   @@index([companyId])
   @@index([companyId, isCustomer])
@@ -383,8 +422,13 @@ model ProductService {
   incomeAccount  Account?      @relation("ProductIncomeAccount", fields: [incomeAccountId], references: [id])
   expenseAccount Account?      @relation("ProductExpenseAccount", fields: [expenseAccountId], references: [id])
   defaultTaxRate TaxRate?      @relation(fields: [defaultTaxRateId], references: [id])
-  invoiceLines   InvoiceLine[]
-  billLines      BillLine[]
+  invoiceLines     InvoiceLine[]
+  billLines        BillLine[]
+  creditNoteLines  CreditNoteLine[]
+  stockMovements     StockMovement[]
+  posSaleLines       PosSaleLine[]
+  quoteLines         QuoteLine[]
+  salesOrderLines    SalesOrderLine[]
 
   @@index([companyId])
   @@map("products_services")
@@ -414,6 +458,7 @@ model TaxRate {
   productsServices ProductService[]
   invoiceLines     InvoiceLine[]
   billLines        BillLine[]
+  creditNoteLines  CreditNoteLine[]
 
   @@index([companyId])
   @@map("tax_rates")
@@ -443,12 +488,13 @@ model Account {
   creator            User                     @relation("AccountCreatedBy", fields: [createdBy], references: [id])
   parentAccount      Account?                 @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
   childAccounts      Account[]                @relation("AccountHierarchy")
-  journalEntryLines  JournalEntryLine[]
-  productsIncome     ProductService[]         @relation("ProductIncomeAccount")
-  productsExpense    ProductService[]         @relation("ProductExpenseAccount")
-  invoiceLinesIncome InvoiceLine[]
-  billLinesExpense   BillLine[]
-  companyDefaults    CompanyAccountDefaults[]
+  journalEntryLines   JournalEntryLine[]
+  productsIncome      ProductService[]         @relation("ProductIncomeAccount")
+  productsExpense     ProductService[]         @relation("ProductExpenseAccount")
+  invoiceLinesIncome  InvoiceLine[]
+  billLinesExpense    BillLine[]
+  creditNoteLinesAcct CreditNoteLine[]
+  companyDefaults     CompanyAccountDefaults[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -511,8 +557,10 @@ model JournalEntry {
   voidedInvoices  Invoice[]          @relation("InvoiceVoidedEntry")
   postedPayments  Payment[]          @relation("PaymentPostedEntry")
   voidedPayments  Payment[]          @relation("PaymentVoidedEntry")
-  postedBills     Bill[]             @relation("BillPostedEntry")
-  voidedBills     Bill[]             @relation("BillVoidedEntry")
+  postedBills        Bill[]             @relation("BillPostedEntry")
+  voidedBills        Bill[]             @relation("BillVoidedEntry")
+  postedCreditNotes  CreditNote[]       @relation("CreditNotePostedEntry")
+  voidedCreditNotes  CreditNote[]       @relation("CreditNoteVoidedEntry")
 
   @@index([companyId])
   @@index([companyId, entryDate, status])
@@ -538,6 +586,291 @@ model JournalEntryLine {
 
   @@index([journalEntryId, accountId])
   @@map("journal_entry_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Fixed Assets
+// ---------------------------------------------------------------------------
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  DECLINING_BALANCE
+}
+
+enum AssetStatus {
+  ACTIVE
+  FULLY_DEPRECIATED
+  DISPOSED
+}
+
+model FixedAsset {
+  id                   String              @id @default(uuid()) @db.Uuid
+  companyId            String              @map("company_id") @db.Uuid
+  name                 String
+  code                 String?
+  category             String?
+  purchaseDate         DateTime            @map("purchase_date") @db.Date
+  purchaseCost         Decimal             @map("purchase_cost") @db.Decimal(19, 4)
+  residualValue        Decimal             @default(0) @map("residual_value") @db.Decimal(19, 4)
+  usefulLifeMonths     Int                 @map("useful_life_months")
+  depreciationMethod   DepreciationMethod  @default(STRAIGHT_LINE) @map("depreciation_method")
+  accumulatedDepr      Decimal             @default(0) @map("accumulated_depr") @db.Decimal(19, 4)
+  netBookValue         Decimal             @default(0) @map("net_book_value") @db.Decimal(19, 4)
+  status               AssetStatus         @default(ACTIVE)
+  disposalDate         DateTime?           @map("disposal_date") @db.Date
+  disposalAmount       Decimal?            @map("disposal_amount") @db.Decimal(19, 4)
+  notes                String?
+  createdBy            String              @map("created_by") @db.Uuid
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator             User                 @relation("FixedAssetCreatedBy", fields: [createdBy], references: [id])
+  depreciationEntries DepreciationEntry[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("fixed_assets")
+}
+
+model DepreciationEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  assetId     String   @map("asset_id") @db.Uuid
+  periodDate  DateTime @map("period_date") @db.Date
+  amount      Decimal  @db.Decimal(19, 4)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  asset FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@map("depreciation_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Payroll
+// ---------------------------------------------------------------------------
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+model Employee {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @map("company_id") @db.Uuid
+  firstName       String         @map("first_name")
+  lastName        String         @map("last_name")
+  personalNumber  String?        @map("personal_number")
+  email           String?
+  phone           String?
+  position        String?
+  department      String?
+  employmentType  EmploymentType @default(FULL_TIME) @map("employment_type")
+  startDate       DateTime       @map("start_date") @db.Date
+  endDate         DateTime?      @map("end_date") @db.Date
+  grossSalary     Decimal        @default(0) @map("gross_salary") @db.Decimal(19, 4)
+  bankAccount     String?        @map("bank_account")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdBy       String         @map("created_by") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator  User          @relation("EmployeeCreatedBy", fields: [createdBy], references: [id])
+  payslips Payslip[]
+
+  @@index([companyId])
+  @@map("employees")
+}
+
+model PayrollRun {
+  id           String           @id @default(uuid()) @db.Uuid
+  companyId    String           @map("company_id") @db.Uuid
+  periodStart  DateTime         @map("period_start") @db.Date
+  periodEnd    DateTime         @map("period_end") @db.Date
+  status       PayrollRunStatus @default(DRAFT)
+  totalGross   Decimal          @default(0) @map("total_gross") @db.Decimal(19, 4)
+  totalNet     Decimal          @default(0) @map("total_net") @db.Decimal(19, 4)
+  totalTax     Decimal          @default(0) @map("total_tax") @db.Decimal(19, 4)
+  totalPension Decimal          @default(0) @map("total_pension") @db.Decimal(19, 4)
+  createdBy    String           @map("created_by") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator  User      @relation("PayrollRunCreatedBy", fields: [createdBy], references: [id])
+  payslips Payslip[]
+
+  @@index([companyId])
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id                  String   @id @default(uuid()) @db.Uuid
+  payrollRunId        String   @map("payroll_run_id") @db.Uuid
+  employeeId          String   @map("employee_id") @db.Uuid
+  grossSalary         Decimal  @map("gross_salary") @db.Decimal(19, 4)
+  pensionEmployee     Decimal  @default(0) @map("pension_employee") @db.Decimal(19, 4)
+  pensionEmployer     Decimal  @default(0) @map("pension_employer") @db.Decimal(19, 4)
+  incomeTax           Decimal  @default(0) @map("income_tax") @db.Decimal(19, 4)
+  netSalary           Decimal  @default(0) @map("net_salary") @db.Decimal(19, 4)
+  overtimeHours       Decimal  @default(0) @map("overtime_hours") @db.Decimal(5, 2)
+  overtimeAmount      Decimal  @default(0) @map("overtime_amount") @db.Decimal(19, 4)
+  bonusAmount         Decimal  @default(0) @map("bonus_amount") @db.Decimal(19, 4)
+  deductionAmount     Decimal  @default(0) @map("deduction_amount") @db.Decimal(19, 4)
+  deductionNotes      String?  @map("deduction_notes")
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id])
+
+  @@unique([payrollRunId, employeeId])
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@map("payslips")
+}
+
+// ---------------------------------------------------------------------------
+// Exchange Rates
+// ---------------------------------------------------------------------------
+
+model ExchangeRate {
+  id             String   @id @default(uuid()) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  baseCurrency   String   @default("EUR") @map("base_currency")
+  targetCurrency String   @map("target_currency")
+  rate           Decimal  @db.Decimal(19, 8)
+  effectiveDate  DateTime @map("effective_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, baseCurrency, targetCurrency, effectiveDate])
+  @@index([companyId, targetCurrency])
+  @@map("exchange_rates")
+}
+
+// ---------------------------------------------------------------------------
+// Quotes & Orders
+// ---------------------------------------------------------------------------
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_INVOICED
+  INVOICED
+  CANCELLED
+}
+
+model Quote {
+  id             String      @id @default(uuid()) @db.Uuid
+  companyId      String      @map("company_id") @db.Uuid
+  quoteNumber    String?     @map("quote_number")
+  contactId      String      @map("contact_id") @db.Uuid
+  issueDate      DateTime    @map("issue_date") @db.Date
+  expiryDate     DateTime    @map("expiry_date") @db.Date
+  currency       String      @default("EUR")
+  subtotalAmount Decimal     @default(0) @map("subtotal_amount") @db.Decimal(19, 4)
+  taxAmount      Decimal     @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount    Decimal     @default(0) @map("total_amount") @db.Decimal(19, 4)
+  status         QuoteStatus @default(DRAFT)
+  notes          String?
+  convertedToId  String?     @map("converted_to_id") @db.Uuid
+  createdBy      String      @map("created_by") @db.Uuid
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contact   Contact     @relation(fields: [contactId], references: [id])
+  creator   User        @relation("QuoteCreatedBy", fields: [createdBy], references: [id])
+  lines     QuoteLine[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  quoteId          String  @map("quote_id") @db.Uuid
+  lineNumber       Int     @map("line_number")
+  productServiceId String? @map("product_service_id") @db.Uuid
+  description      String
+  quantity         Decimal @db.Decimal(19, 4)
+  unitPrice        Decimal @map("unit_price") @db.Decimal(19, 4)
+  discountPercent  Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  taxAmount        Decimal @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount      Decimal @default(0) @map("total_amount") @db.Decimal(19, 4)
+
+  quote          Quote           @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productService ProductService? @relation(fields: [productServiceId], references: [id])
+
+  @@index([quoteId])
+  @@map("quote_lines")
+}
+
+model SalesOrder {
+  id              String           @id @default(uuid()) @db.Uuid
+  companyId       String           @map("company_id") @db.Uuid
+  orderNumber     String?          @map("order_number")
+  contactId       String           @map("contact_id") @db.Uuid
+  orderDate       DateTime         @map("order_date") @db.Date
+  deliveryDate    DateTime?        @map("delivery_date") @db.Date
+  currency        String           @default("EUR")
+  subtotalAmount  Decimal          @default(0) @map("subtotal_amount") @db.Decimal(19, 4)
+  taxAmount       Decimal          @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount     Decimal          @default(0) @map("total_amount") @db.Decimal(19, 4)
+  invoicedAmount  Decimal          @default(0) @map("invoiced_amount") @db.Decimal(19, 4)
+  status          SalesOrderStatus @default(DRAFT)
+  notes           String?
+  quoteId         String?          @map("quote_id") @db.Uuid
+  createdBy       String           @map("created_by") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contact  Contact          @relation(fields: [contactId], references: [id])
+  creator  User             @relation("SalesOrderCreatedBy", fields: [createdBy], references: [id])
+  lines    SalesOrderLine[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  orderId          String  @map("order_id") @db.Uuid
+  lineNumber       Int     @map("line_number")
+  productServiceId String? @map("product_service_id") @db.Uuid
+  description      String
+  quantity         Decimal @db.Decimal(19, 4)
+  unitPrice        Decimal @map("unit_price") @db.Decimal(19, 4)
+  discountPercent  Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  taxAmount        Decimal @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount      Decimal @default(0) @map("total_amount") @db.Decimal(19, 4)
+  invoicedQty      Decimal @default(0) @map("invoiced_qty") @db.Decimal(19, 4)
+
+  order          SalesOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productService ProductService? @relation(fields: [productServiceId], references: [id])
+
+  @@index([orderId])
+  @@map("sales_order_lines")
 }
 
 // ---------------------------------------------------------------------------
@@ -575,7 +908,9 @@ model Invoice {
   voidedJournalEntry JournalEntry?       @relation("InvoiceVoidedEntry", fields: [voidedJournalEntryId], references: [id])
   lines              InvoiceLine[]
   paymentAllocations PaymentAllocation[]
+  creditNotes        CreditNote[]
   fiscalCoupon       FiscalCoupon?
+  posSale            PosSale?
 
   @@index([companyId])
   @@index([companyId, status])
@@ -702,6 +1037,7 @@ model Bill {
   voidedJournalEntry JournalEntry?       @relation("BillVoidedEntry", fields: [voidedJournalEntryId], references: [id])
   lines              BillLine[]
   paymentAllocations PaymentAllocation[]
+  creditNotes        CreditNote[]
 
   @@index([companyId])
   @@index([companyId, status])
@@ -733,6 +1069,75 @@ model BillLine {
 
   @@index([billId])
   @@map("bill_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Credit Notes (Sales Returns / Vendor Credits)
+// ---------------------------------------------------------------------------
+
+model CreditNote {
+  id                   String           @id @default(uuid()) @db.Uuid
+  companyId            String           @map("company_id") @db.Uuid
+  creditNoteNumber     String?          @map("credit_note_number") // null while DRAFT, set on ISSUE
+  type                 CreditNoteType
+  contactId            String           @map("contact_id") @db.Uuid
+  issueDate            DateTime         @map("issue_date") @db.Date
+  currency             String           @default("EUR")
+  exchangeRate         Decimal          @default(1) @map("exchange_rate") @db.Decimal(19, 4)
+  subtotalAmount       Decimal          @default(0) @map("subtotal_amount") @db.Decimal(19, 4)
+  taxAmount            Decimal          @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount          Decimal          @default(0) @map("total_amount") @db.Decimal(19, 4)
+  status               CreditNoteStatus @default(DRAFT)
+  reason               String?
+  originalInvoiceId    String?          @map("original_invoice_id") @db.Uuid
+  originalBillId       String?          @map("original_bill_id") @db.Uuid
+  postedJournalEntryId String?          @map("posted_journal_entry_id") @db.Uuid
+  voidedJournalEntryId String?          @map("voided_journal_entry_id") @db.Uuid
+  createdBy            String           @map("created_by") @db.Uuid
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator            User           @relation("CreditNoteCreatedBy", fields: [createdBy], references: [id])
+  contact            Contact        @relation(fields: [contactId], references: [id])
+  originalInvoice    Invoice?       @relation(fields: [originalInvoiceId], references: [id])
+  originalBill       Bill?          @relation(fields: [originalBillId], references: [id])
+  postedJournalEntry JournalEntry?  @relation("CreditNotePostedEntry", fields: [postedJournalEntryId], references: [id])
+  voidedJournalEntry JournalEntry?  @relation("CreditNoteVoidedEntry", fields: [voidedJournalEntryId], references: [id])
+  lines              CreditNoteLine[]
+  fiscalCoupon       FiscalCoupon?
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, type])
+  @@map("credit_notes")
+}
+
+model CreditNoteLine {
+  id               String        @id @default(uuid()) @db.Uuid
+  creditNoteId     String        @map("credit_note_id") @db.Uuid
+  lineNumber       Int           @map("line_number")
+  productServiceId String?       @map("product_service_id") @db.Uuid
+  description      String?
+  quantity         Decimal       @db.Decimal(19, 4)
+  unitPrice        Decimal       @map("unit_price") @db.Decimal(19, 4)
+  discountType     DiscountType? @map("discount_type")
+  discountValue    Decimal?      @map("discount_value") @db.Decimal(19, 4)
+  taxRateId        String?       @map("tax_rate_id") @db.Uuid
+  netAmount        Decimal       @default(0) @map("net_amount") @db.Decimal(19, 4)
+  taxAmount        Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount      Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
+  accountId        String?       @map("account_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  creditNote     CreditNote      @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  productService ProductService? @relation(fields: [productServiceId], references: [id])
+  taxRate        TaxRate?        @relation(fields: [taxRateId], references: [id])
+  account        Account?        @relation(fields: [accountId], references: [id])
+
+  @@index([creditNoteId])
+  @@map("credit_note_lines")
 }
 
 // ---------------------------------------------------------------------------
@@ -808,7 +1213,8 @@ model CompanyFiscalConfig {
 model FiscalCoupon {
   id               String             @id @default(uuid()) @db.Uuid
   companyId        String             @map("company_id") @db.Uuid
-  invoiceId        String             @unique @map("invoice_id") @db.Uuid
+  invoiceId        String?            @unique @map("invoice_id") @db.Uuid
+  creditNoteId     String?            @unique @map("credit_note_id") @db.Uuid
   status           FiscalCouponStatus @default(PENDING)
   couponType       FiscalCouponType   @default(SALE) @map("coupon_type")
   provider         FiscalProvider     @default(NONE)
@@ -828,10 +1234,182 @@ model FiscalCoupon {
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice    Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  creditNote CreditNote? @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([companyId, status])
   @@map("fiscal_coupons")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+enum StockMovementType {
+  GOODS_RECEIPT // purchase inbound
+  GOODS_ISSUE // sale outbound
+  TRANSFER_IN // warehouse transfer (receiving end)
+  TRANSFER_OUT // warehouse transfer (sending end)
+  ADJUSTMENT_IN // stocktake surplus
+  ADJUSTMENT_OUT // stocktake shortage
+  RETURN_IN // customer return
+  RETURN_OUT // vendor return
+}
+
+model Warehouse {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  code        String
+  name        String
+  address     String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator        User            @relation("WarehouseCreatedBy", fields: [createdBy], references: [id])
+  stockMovements StockMovement[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("warehouses")
+}
+
+model StockMovement {
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String            @map("company_id") @db.Uuid
+  warehouseId      String            @map("warehouse_id") @db.Uuid
+  productServiceId String            @map("product_service_id") @db.Uuid
+  type             StockMovementType
+  quantity         Decimal           @db.Decimal(19, 4)
+  unitCost         Decimal?          @map("unit_cost") @db.Decimal(19, 4)
+  reference        String?           // document reference (e.g. INV-001, BILL-002)
+  sourceDocumentId String?           @map("source_document_id") @db.Uuid
+  sourceDocumentType String?         @map("source_document_type") // INVOICE, BILL, CREDIT_NOTE, TRANSFER, ADJUSTMENT
+  notes            String?
+  movementDate     DateTime          @map("movement_date") @db.Date
+  createdBy        String            @map("created_by") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse      Warehouse      @relation(fields: [warehouseId], references: [id])
+  productService ProductService @relation(fields: [productServiceId], references: [id])
+  creator        User           @relation("StockMovementCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([companyId])
+  @@index([companyId, warehouseId, productServiceId])
+  @@index([companyId, productServiceId])
+  @@index([sourceDocumentId])
+  @@map("stock_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Point of Sale (POS)
+// ---------------------------------------------------------------------------
+
+enum PosSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum PosSaleStatus {
+  COMPLETED
+  VOIDED
+}
+
+enum PosPaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  OTHER
+}
+
+model PosRegister {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company  Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sessions PosSession[]
+
+  @@index([companyId])
+  @@map("pos_registers")
+}
+
+model PosSession {
+  id              String           @id @default(uuid()) @db.Uuid
+  companyId       String           @map("company_id") @db.Uuid
+  registerId      String           @map("register_id") @db.Uuid
+  openedBy        String           @map("opened_by") @db.Uuid
+  closedBy        String?          @map("closed_by") @db.Uuid
+  status          PosSessionStatus @default(OPEN)
+  openingBalance  Decimal          @default(0) @map("opening_balance") @db.Decimal(19, 4)
+  closingBalance  Decimal?         @map("closing_balance") @db.Decimal(19, 4)
+  expectedBalance Decimal?         @map("expected_balance") @db.Decimal(19, 4)
+  openedAt        DateTime         @default(now()) @map("opened_at")
+  closedAt        DateTime?        @map("closed_at")
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  register PosRegister @relation(fields: [registerId], references: [id])
+  opener   User       @relation("PosSessionOpenedBy", fields: [openedBy], references: [id])
+  closer   User?      @relation("PosSessionClosedBy", fields: [closedBy], references: [id])
+  sales    PosSale[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("pos_sessions")
+}
+
+model PosSale {
+  id            String           @id @default(uuid()) @db.Uuid
+  companyId     String           @map("company_id") @db.Uuid
+  sessionId     String           @map("session_id") @db.Uuid
+  saleNumber    Int              @map("sale_number")
+  status        PosSaleStatus    @default(COMPLETED)
+  paymentMethod PosPaymentMethod @map("payment_method")
+  subtotal      Decimal          @default(0) @db.Decimal(19, 4)
+  taxAmount     Decimal          @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount   Decimal          @default(0) @map("total_amount") @db.Decimal(19, 4)
+  amountPaid    Decimal          @default(0) @map("amount_paid") @db.Decimal(19, 4)
+  changeGiven   Decimal          @default(0) @map("change_given") @db.Decimal(19, 4)
+  currency      String           @default("EUR")
+  invoiceId     String?          @unique @map("invoice_id") @db.Uuid
+  customerName  String?          @map("customer_name")
+  createdBy     String           @map("created_by") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  session  PosSession    @relation(fields: [sessionId], references: [id])
+  invoice  Invoice?      @relation(fields: [invoiceId], references: [id])
+  creator  User          @relation("PosSaleCreatedBy", fields: [createdBy], references: [id])
+  lines    PosSaleLine[]
+
+  @@index([companyId])
+  @@index([sessionId])
+  @@map("pos_sales")
+}
+
+model PosSaleLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  saleId           String  @map("sale_id") @db.Uuid
+  lineNumber       Int     @map("line_number")
+  productServiceId String  @map("product_service_id") @db.Uuid
+  name             String
+  quantity         Decimal @db.Decimal(19, 4)
+  unitPrice        Decimal @map("unit_price") @db.Decimal(19, 4)
+  taxAmount        Decimal @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount      Decimal @default(0) @map("total_amount") @db.Decimal(19, 4)
+
+  sale           PosSale        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productService ProductService @relation(fields: [productServiceId], references: [id])
+
+  @@index([saleId])
+  @@map("pos_sale_lines")
 }

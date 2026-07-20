@@ -1,8 +1,9 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { FiscalCouponStatus, FiscalCouponType, FiscalProvider, Prisma } from "@prisma/client";
+import { paginatedResponse } from "../../common/dto/paginated-response.dto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditAction, AuditEntityType, AuditService } from "../audit/audit.service";
-import type { RecordManualCouponDto, UpsertFiscalConfigDto } from "./dto";
+import type { FiscalCouponFilterDto, RecordManualCouponDto, UpsertFiscalConfigDto } from "./dto";
 import {
   FISCALIZATION_PROVIDERS,
   type FiscalizationProvider,
@@ -102,10 +103,87 @@ export class FiscalizationService {
     }
   }
 
+  /**
+   * Called after a sales credit note is issued (post-commit, best-effort).
+   * Creates a PENDING RETURN-type fiscal coupon when fiscalization is enabled.
+   */
+  async onCreditNoteIssued(companyId: string, creditNoteId: string): Promise<void> {
+    try {
+      const config = await this.prisma.companyFiscalConfig.findUnique({ where: { companyId } });
+      if (!config?.enabled) return;
+
+      const cn = await this.prisma.creditNote.findFirst({
+        where: { id: creditNoteId, companyId, type: "SALES" },
+      });
+      if (!cn) return;
+
+      await this.prisma.fiscalCoupon.upsert({
+        where: { creditNoteId },
+        create: {
+          companyId,
+          creditNoteId,
+          status: FiscalCouponStatus.PENDING,
+          couponType: FiscalCouponType.RETURN,
+          provider: config.provider,
+          totalAmount: cn.totalAmount,
+          taxAmount: cn.taxAmount,
+          currency: cn.currency,
+          businessUnitCode: config.businessUnitCode,
+          operatorCode: config.operatorCode,
+        },
+        update: {},
+      });
+    } catch (err) {
+      this.logger.error(
+        `onCreditNoteIssued failed for credit note ${creditNoteId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Called after a credit note is voided (post-commit, best-effort). */
+  async onCreditNoteVoided(companyId: string, creditNoteId: string): Promise<void> {
+    try {
+      await this.prisma.fiscalCoupon.updateMany({
+        where: { creditNoteId, companyId },
+        data: { status: FiscalCouponStatus.VOIDED },
+      });
+    } catch (err) {
+      this.logger.error(
+        `onCreditNoteVoided failed for credit note ${creditNoteId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
   // --------------------------------------------------------------- coupons
 
   async getCouponForInvoice(companyId: string, invoiceId: string) {
     return this.prisma.fiscalCoupon.findFirst({ where: { invoiceId, companyId } });
+  }
+
+  async getCouponForCreditNote(companyId: string, creditNoteId: string) {
+    return this.prisma.fiscalCoupon.findFirst({ where: { creditNoteId, companyId } });
+  }
+
+  async listCoupons(companyId: string, filters: FiscalCouponFilterDto) {
+    const where: Prisma.FiscalCouponWhereInput = { companyId };
+    if (filters.status) where.status = filters.status;
+    if (filters.couponType) where.couponType = filters.couponType;
+
+    const [items, total] = await Promise.all([
+      this.prisma.fiscalCoupon.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: ((filters.page ?? 1) - 1) * (filters.limit ?? 20),
+        take: filters.limit ?? 20,
+        include: {
+          invoice: { select: { id: true, invoiceNumber: true, status: true } },
+          creditNote: { select: { id: true, creditNoteNumber: true, status: true } },
+        },
+      }),
+      this.prisma.fiscalCoupon.count({ where }),
+    ]);
+
+    return paginatedResponse(items, total, filters.page ?? 1, filters.limit ?? 20);
   }
 
   /** Run the configured provider against an issued invoice and store the result. */
@@ -208,6 +286,59 @@ export class FiscalizationService {
       entityId: coupon.id,
       action: AuditAction.FISCALIZED,
       after: { status: coupon.status, fcuin: coupon.fcuin, manual: true },
+    });
+
+    return coupon;
+  }
+
+  /** Record a manual FCUIN for a credit note (RETURN coupon). */
+  async recordManualCreditNoteCoupon(
+    companyId: string,
+    creditNoteId: string,
+    dto: RecordManualCouponDto,
+    userId: string,
+  ) {
+    const config = await this.prisma.companyFiscalConfig.findUnique({ where: { companyId } });
+    const cn = await this.prisma.creditNote.findFirst({ where: { id: creditNoteId, companyId } });
+    if (!cn) throw new NotFoundException("Credit note not found");
+
+    const coupon = await this.prisma.fiscalCoupon.upsert({
+      where: { creditNoteId },
+      create: {
+        companyId,
+        creditNoteId,
+        status: FiscalCouponStatus.FISCALIZED,
+        couponType: FiscalCouponType.RETURN,
+        provider: config?.provider ?? FiscalProvider.MANUAL_EDI,
+        totalAmount: cn.totalAmount,
+        taxAmount: cn.taxAmount,
+        currency: cn.currency,
+        businessUnitCode: config?.businessUnitCode ?? null,
+        operatorCode: config?.operatorCode ?? null,
+        fcuin: dto.fcuin,
+        verificationUrl: dto.verificationUrl ?? null,
+        qrPayload: dto.qrPayload ?? null,
+        taxBlockCode: dto.taxBlockCode ?? null,
+        fiscalizedAt: new Date(),
+      },
+      update: {
+        status: FiscalCouponStatus.FISCALIZED,
+        fcuin: dto.fcuin,
+        verificationUrl: dto.verificationUrl ?? null,
+        qrPayload: dto.qrPayload ?? null,
+        taxBlockCode: dto.taxBlockCode ?? null,
+        errorMessage: null,
+        fiscalizedAt: new Date(),
+      },
+    });
+
+    await this.audit.log({
+      companyId,
+      userId,
+      entityType: AuditEntityType.FISCAL_COUPON,
+      entityId: coupon.id,
+      action: AuditAction.FISCALIZED,
+      after: { status: coupon.status, fcuin: coupon.fcuin, manual: true, creditNoteId },
     });
 
     return coupon;

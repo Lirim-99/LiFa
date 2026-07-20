@@ -12,6 +12,7 @@ import { DecimalUtil } from "../../common/utils/decimal.helper";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditAction, AuditEntityType, AuditService } from "../audit/audit.service";
 import { FiscalizationService } from "../fiscalization/fiscalization.service";
+import { InventoryService } from "../inventory/inventory.service";
 import { CreateInvoiceDto, CreateInvoiceLineDto } from "./dto/create-invoice.dto";
 import { InvoiceFilterDto } from "./dto/invoice-filter.dto";
 import { UpdateInvoiceDto } from "./dto/update-invoice.dto";
@@ -24,6 +25,7 @@ export class InvoicesService {
     private readonly docSeq: DocumentSequenceService,
     private readonly audit: AuditService,
     private readonly fiscalization: FiscalizationService,
+    private readonly inventory: InventoryService,
   ) {}
 
   // ===================================================================
@@ -384,6 +386,23 @@ export class InvoicesService {
     // Best-effort, post-commit: create a PENDING fiscal coupon when
     // fiscalization is enabled. Never blocks issuing — see FISCALIZATION.md.
     await this.fiscalization.onInvoiceIssued(companyId, issued.id);
+
+    // Best-effort: create GOODS_ISSUE stock movements for product lines
+    await this.inventory.createDocumentMovements(companyId, issued.createdBy, {
+      documentType: "INVOICE",
+      documentId: issued.id,
+      reference: issued.invoiceNumber ?? issued.id,
+      movementType: "GOODS_ISSUE",
+      movementDate: issued.issueDate,
+      lines: issued.lines
+        .filter((l) => l.productServiceId)
+        .map((l) => ({
+          productServiceId: l.productServiceId!,
+          quantity: Number(l.quantity),
+          unitCost: Number(l.unitPrice),
+        })),
+    });
+
     return issued;
   }
 

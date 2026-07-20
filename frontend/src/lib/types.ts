@@ -435,3 +435,60 @@ export interface FiscalCoupon {
   fiscalizedAt: string | null;
   errorMessage: string | null;
 }
+
+// --- Credit Notes ---
+
+export type CreditNoteType = "SALES" | "PURCHASE";
+export type CreditNoteStatus = "DRAFT" | "ISSUED" | "VOID";
+
+export const CREDIT_NOTE_TYPES = [
+  { value: "SALES", label: "enums.creditNoteType.SALES" },
+  { value: "PURCHASE", label: "enums.creditNoteType.PURCHASE" },
+] as const;
+
+export const CREDIT_NOTE_STATUSES = [
+  { value: "DRAFT", label: "enums.creditNoteStatus.DRAFT" },
+  { value: "ISSUED", label: "enums.creditNoteStatus.ISSUED" },
+  { value: "VOID", label: "enums.creditNoteStatus.VOID" },
+] as const;
+
+export interface CreditNoteLine {
+  id: string;
+  creditNoteId: string;
+  lineNumber: number;
+  productServiceId: string | null;
+  description: string | null;
+  quantity: string;
+  unitPrice: string;
+  discountType: "PERCENTAGE" | "FIXED" | null;
+  discountValue: string | null;
+  taxRateId: string | null;
+  netAmount: string;
+  taxAmount: string;
+  totalAmount: string;
+  accountId: string | null;
+}
+
+export interface CreditNote {
+  id: string;
+  companyId: string;
+  creditNoteNumber: string | null;
+  type: CreditNoteType;
+  contactId: string;
+  issueDate: string;
+  currency: string;
+  subtotalAmount: string;
+  taxAmount: string;
+  totalAmount: string;
+  status: CreditNoteStatus;
+  reason: string | null;
+  originalInvoiceId: string | null;
+  originalBillId: string | null;
+  postedJournalEntryId: string | null;
+  voidedJournalEntryId: string | null;
+  createdAt: string;
+  lines?: CreditNoteLine[];
+  contact?: { id: string; displayName: string; email?: string | null };
+  originalInvoice?: { id: string; invoiceNumber: string | null } | null;
+  originalBill?: { id: string; billNumber: string } | null;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArchiveBoxIcon,
   BanknotesIcon,
   BookOpenIcon,
   CalendarDaysIcon,
@@ -8,13 +9,18 @@ import {
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
   Cog6ToothIcon,
+  CurrencyDollarIcon,
+  DocumentDuplicateIcon,
   DocumentTextIcon,
   HomeIcon,
   InboxArrowDownIcon,
+  QueueListIcon,
   ReceiptPercentIcon,
+  ShieldCheckIcon,
   ShoppingBagIcon,
   Squares2X2Icon,
   UserGroupIcon,
+  UserIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
@@ -35,8 +41,17 @@ const SECTIONS: { labelKey: string; items: NavItem[] }[] = [
     labelKey: "nav.sections.sales",
     items: [
       { href: "/invoices", labelKey: "nav.items.invoices", icon: DocumentTextIcon },
+      { href: "/credit-notes", labelKey: "nav.items.creditNotes", icon: ClipboardDocumentListIcon },
       { href: "/payments", labelKey: "nav.items.payments", icon: BanknotesIcon },
+      { href: "/fiscal-coupons", labelKey: "nav.items.fiscalCoupons", icon: ShieldCheckIcon },
       { href: "/contacts", labelKey: "nav.items.contacts", icon: UserGroupIcon },
+    ],
+  },
+  {
+    labelKey: "nav.sections.quotesOrders",
+    items: [
+      { href: "/quotes", labelKey: "nav.items.quotes", icon: DocumentDuplicateIcon },
+      { href: "/sales-orders", labelKey: "nav.items.salesOrders", icon: QueueListIcon },
     ],
   },
   {
@@ -44,10 +59,19 @@ const SECTIONS: { labelKey: string; items: NavItem[] }[] = [
     items: [{ href: "/bills", labelKey: "nav.items.bills", icon: InboxArrowDownIcon }],
   },
   {
+    labelKey: "nav.sections.inventory",
+    items: [{ href: "/inventory", labelKey: "nav.items.inventory", icon: ArchiveBoxIcon }],
+  },
+  {
+    labelKey: "nav.sections.pos",
+    items: [{ href: "/pos", labelKey: "nav.items.pos", icon: Squares2X2Icon }],
+  },
+  {
     labelKey: "nav.sections.catalogTax",
     items: [
       { href: "/products-services", labelKey: "nav.items.products", icon: ShoppingBagIcon },
       { href: "/tax-rates", labelKey: "nav.items.taxRates", icon: ReceiptPercentIcon },
+      { href: "/exchange-rates", labelKey: "nav.items.exchangeRates", icon: CurrencyDollarIcon },
     ],
   },
   {
@@ -60,7 +84,12 @@ const SECTIONS: { labelKey: string; items: NavItem[] }[] = [
         icon: ClipboardDocumentCheckIcon,
       },
       { href: "/accounting-periods", labelKey: "nav.items.periods", icon: CalendarDaysIcon },
+      { href: "/fixed-assets", labelKey: "nav.items.fixedAssets", icon: CurrencyDollarIcon },
     ],
+  },
+  {
+    labelKey: "nav.sections.payroll",
+    items: [{ href: "/payroll", labelKey: "nav.items.payroll", icon: UserIcon }],
   },
   {
     labelKey: "nav.sections.reports",

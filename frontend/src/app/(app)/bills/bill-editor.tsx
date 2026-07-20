@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocale, useT } from "@/i18n/client";
 import { formatCurrency } from "@/i18n/format";
+import { downloadPdf } from "@/lib/download-pdf";
 import { useAccounts } from "@/lib/queries/accounts";
 import {
   useBill,
@@ -423,6 +424,20 @@ export function BillEditor({
                   loading={voidBill.isPending}
                 >
                   {t("bills.void")}
+                </Button>
+              ) : null}
+              {existing && existing.status !== "DRAFT" ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() =>
+                    downloadPdf(
+                      `/bills/${existing.id}/pdf`,
+                      `BILL-${existing.billNumber ?? "draft"}.pdf`,
+                    )
+                  }
+                >
+                  PDF ↓
                 </Button>
               ) : null}
             </div>

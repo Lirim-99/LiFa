@@ -49,6 +49,15 @@ export type Permission =
   | "fiscalization.read"
   | "fiscalization.manage"
   | "fiscalization.fiscalize"
+  | "inventory.read"
+  | "inventory.manage"
+  | "pos.read"
+  | "pos.manage"
+  | "pos.sell"
+  | "quotes.read"
+  | "quotes.manage"
+  | "payroll.read"
+  | "payroll.manage"
   | "reports.read"
   | "audit.read"
   | "permissions.manage";
@@ -65,6 +74,10 @@ const PERMISSIONS_BY_ROLE: Record<RoleCode, ReadonlySet<string>> = {
     "payments.*",
     "bills.*",
     "fiscalization.*",
+    "inventory.*",
+    "pos.*",
+    "quotes.*",
+    "payroll.*",
     "reports.read",
     "audit.read",
     "permissions.manage",
@@ -79,6 +92,10 @@ const PERMISSIONS_BY_ROLE: Record<RoleCode, ReadonlySet<string>> = {
     "payments.*",
     "bills.*",
     "fiscalization.*",
+    "inventory.*",
+    "pos.*",
+    "quotes.*",
+    "payroll.*",
     "reports.read",
     "audit.read",
     "permissions.manage",
@@ -93,6 +110,9 @@ const PERMISSIONS_BY_ROLE: Record<RoleCode, ReadonlySet<string>> = {
     "bills.*",
     "fiscalization.read",
     "fiscalization.fiscalize",
+    "inventory.*",
+    "pos.*",
+    "quotes.*",
     "reports.read",
     "audit.read",
   ]),
