@@ -16,7 +16,9 @@
  *   - 1 SHPK company with full default setup (CoA, periods, tax rates,
  *     account defaults — handled by CompaniesService.create)
  *   - 6 contacts (3 customers, 2 vendors, 1 both)
- *   - 4 catalog items (2 products, 2 services)
+ *   - Catalog items (retail products + services) with default VAT
+ *   - Inventory: default warehouse + opening stock (goods receipts)
+ *   - POS: 1 register, 1 closed demo session with sample sales, ready for a new open
  *   - 6 invoices spanning every status: DRAFT, ISSUED, ISSUED-overdue,
  *     PARTIALLY_PAID, PAID, VOID
  *   - 2 payments (one partial, one full)
@@ -89,8 +91,30 @@ async function main() {
   log("Creating contacts (3 customers, 2 vendors, 1 both)…");
   const contacts = await createContacts(app.get(ContactsService), company.id, users.owner.id);
 
-  log("Creating catalog items (2 products, 2 services)…");
-  await createCatalog(app.get(CatalogService), company.id, users.owner.id, prisma);
+  log("Creating catalog items (retail products + services)…");
+  const catalogItems = await createCatalog(
+    app.get(CatalogService),
+    company.id,
+    users.owner.id,
+    prisma,
+  );
+
+  log("Creating warehouse + opening stock for POS…");
+  const warehouse = await createWarehouseAndStock(
+    prisma,
+    company.id,
+    users.owner.id,
+    catalogItems.products,
+  );
+
+  log("Creating POS register + demo session with sample sales…");
+  await createPosDemo(
+    prisma,
+    company.id,
+    users.owner.id,
+    warehouse.id,
+    catalogItems.products,
+  );
 
   log("Creating invoices across every status (DRAFT → VOID)…");
   const invoiceList = await createInvoices(
@@ -120,10 +144,14 @@ async function main() {
   await createLegalProfile(prisma, company.id);
 
   console.log("");
-  console.log("Demo data is ready. Sign in at http://localhost:3000/login:");
+  console.log("Demo data is ready.");
   console.log("");
+  console.log("  App:  https://lifa-app.vercel.app/login  (or http://localhost:3000/login)");
+  console.log("  POS:  /pos  — register “Arka 1” is ready; open a session to start selling");
+  console.log("");
+  console.log("  Users (password for all: " + PASSWORD + "):");
   for (const [role, info] of Object.entries(DEMO_USERS)) {
-    console.log(`  ${role.padEnd(10)} → ${info.email}  /  ${PASSWORD}`);
+    console.log(`    ${role.padEnd(12)} → ${info.email}`);
   }
   console.log("");
 
@@ -149,6 +177,19 @@ async function cleanup(prisma: PrismaService) {
   });
   if (company) {
     const companyId = company.id;
+    // POS sales may reference invoices — clear POS first.
+    await prisma.posSale.deleteMany({ where: { companyId } });
+    await prisma.posSession.deleteMany({ where: { companyId } });
+    await prisma.posRegister.deleteMany({ where: { companyId } });
+    await prisma.stockMovement.deleteMany({ where: { companyId } });
+    await prisma.warehouse.deleteMany({ where: { companyId } });
+    await prisma.creditNote.deleteMany({ where: { companyId } });
+    await prisma.quote.deleteMany({ where: { companyId } });
+    await prisma.salesOrder.deleteMany({ where: { companyId } });
+    await prisma.payrollRun.deleteMany({ where: { companyId } });
+    await prisma.employee.deleteMany({ where: { companyId } });
+    await prisma.fixedAsset.deleteMany({ where: { companyId } });
+    await prisma.exchangeRate.deleteMany({ where: { companyId } });
     await prisma.payment.deleteMany({ where: { companyId } }); // → allocations (invoice + bill)
     await prisma.invoice.deleteMany({ where: { companyId } }); // → lines, fiscal coupons
     await prisma.bill.deleteMany({ where: { companyId } }); // → bill lines (before journal entries)
@@ -339,7 +380,7 @@ async function createCatalog(
     where: { companyId, code: "VAT_STANDARD" },
   });
 
-  await catalog.create(
+  const notebook = await catalog.create(
     companyId,
     {
       name: "Office Notebook (A5)",
@@ -354,7 +395,7 @@ async function createCatalog(
     } as never,
     userId,
   );
-  await catalog.create(
+  const penSet = await catalog.create(
     companyId,
     {
       name: "Premium Pen Set",
@@ -364,6 +405,36 @@ async function createCatalog(
       salePrice: 15,
       purchasePrice: 6,
       incomeAccountId: salesRevenue.id,
+      defaultTaxRateId: taxStandard.id,
+    } as never,
+    userId,
+  );
+  const water = await catalog.create(
+    companyId,
+    {
+      name: "Mineral Water 0.5L",
+      type: "PRODUCT" as never,
+      sku: "WTR-05",
+      unit: "bottle",
+      salePrice: 0.8,
+      purchasePrice: 0.25,
+      incomeAccountId: salesRevenue.id,
+      expenseAccountId: cogs.id,
+      defaultTaxRateId: taxStandard.id,
+    } as never,
+    userId,
+  );
+  const coffee = await catalog.create(
+    companyId,
+    {
+      name: "Espresso (cup)",
+      type: "PRODUCT" as never,
+      sku: "COF-ESP",
+      unit: "cup",
+      salePrice: 1.5,
+      purchasePrice: 0.4,
+      incomeAccountId: salesRevenue.id,
+      expenseAccountId: cogs.id,
       defaultTaxRateId: taxStandard.id,
     } as never,
     userId,
@@ -392,6 +463,202 @@ async function createCatalog(
     } as never,
     userId,
   );
+
+  return {
+    products: [
+      { id: notebook.id, name: notebook.name, unitPrice: 4.5 },
+      { id: penSet.id, name: penSet.name, unitPrice: 15 },
+      { id: water.id, name: water.name, unitPrice: 0.8 },
+      { id: coffee.id, name: coffee.name, unitPrice: 1.5 },
+    ],
+  };
+}
+
+// --------------------------------------------------------------------------
+// Inventory + POS
+// --------------------------------------------------------------------------
+
+async function createWarehouseAndStock(
+  prisma: PrismaService,
+  companyId: string,
+  userId: string,
+  products: { id: string; unitPrice: number }[],
+) {
+  const warehouse = await prisma.warehouse.create({
+    data: {
+      companyId,
+      code: "MAIN",
+      name: "Main warehouse / Depo kryesore",
+      address: "Rr. UÇK 5, Pristina",
+      isDefault: true,
+      isActive: true,
+      createdBy: userId,
+    },
+  });
+
+  // Opening stock so POS sales don't start from zero.
+  const openingQty: Record<string, number> = {};
+  for (const p of products) {
+    openingQty[p.id] = p.unitPrice >= 10 ? 40 : 200;
+  }
+
+  await prisma.stockMovement.createMany({
+    data: products.map((p) => ({
+      companyId,
+      warehouseId: warehouse.id,
+      productServiceId: p.id,
+      type: "GOODS_RECEIPT" as const,
+      quantity: openingQty[p.id],
+      unitCost: p.unitPrice * 0.4,
+      reference: "OPENING",
+      sourceDocumentType: "ADJUSTMENT",
+      notes: "Demo opening stock",
+      movementDate: daysAgo(60),
+      createdBy: userId,
+    })),
+  });
+
+  return warehouse;
+}
+
+async function createPosDemo(
+  prisma: PrismaService,
+  companyId: string,
+  userId: string,
+  warehouseId: string,
+  products: { id: string; name: string; unitPrice: number }[],
+) {
+  const register = await prisma.posRegister.create({
+    data: {
+      companyId,
+      name: "Arka 1",
+      isActive: true,
+    },
+  });
+
+  // Closed session from yesterday with 2 completed sales (history to browse).
+  const session = await prisma.posSession.create({
+    data: {
+      companyId,
+      registerId: register.id,
+      openedBy: userId,
+      closedBy: userId,
+      status: "CLOSED",
+      openingBalance: 50,
+      closingBalance: 78.6,
+      expectedBalance: 78.6,
+      openedAt: daysAgo(1),
+      closedAt: daysAgo(1),
+    },
+  });
+
+  const [p1, p2, p3] = products;
+  const taxRate = 0.18;
+
+  // Sale 1 — cash: water + coffee
+  const sale1Lines = [
+    { product: p3, qty: 2 },
+    { product: products[3] ?? p3, qty: 1 },
+  ];
+  let sale1Sub = 0;
+  let sale1Tax = 0;
+  const sale1LineData = sale1Lines.map((l, i) => {
+    const lineTotal = l.qty * l.product.unitPrice;
+    const lineTax = Math.round(lineTotal * taxRate * 100) / 100;
+    sale1Sub += lineTotal;
+    sale1Tax += lineTax;
+    return {
+      lineNumber: i + 1,
+      productServiceId: l.product.id,
+      name: l.product.name,
+      quantity: l.qty,
+      unitPrice: l.product.unitPrice,
+      taxAmount: lineTax,
+      totalAmount: lineTotal + lineTax,
+    };
+  });
+  const sale1Total = sale1Sub + sale1Tax;
+
+  await prisma.posSale.create({
+    data: {
+      companyId,
+      sessionId: session.id,
+      saleNumber: 1,
+      status: "COMPLETED",
+      paymentMethod: "CASH",
+      subtotal: sale1Sub,
+      taxAmount: sale1Tax,
+      totalAmount: sale1Total,
+      amountPaid: 20,
+      changeGiven: Math.round((20 - sale1Total) * 100) / 100,
+      createdBy: userId,
+      lines: { create: sale1LineData },
+    },
+  });
+
+  // Sale 2 — card: notebook + pen
+  const sale2Lines = [
+    { product: p1, qty: 1 },
+    { product: p2, qty: 1 },
+  ];
+  let sale2Sub = 0;
+  let sale2Tax = 0;
+  const sale2LineData = sale2Lines.map((l, i) => {
+    const lineTotal = l.qty * l.product.unitPrice;
+    const lineTax = Math.round(lineTotal * taxRate * 100) / 100;
+    sale2Sub += lineTotal;
+    sale2Tax += lineTax;
+    return {
+      lineNumber: i + 1,
+      productServiceId: l.product.id,
+      name: l.product.name,
+      quantity: l.qty,
+      unitPrice: l.product.unitPrice,
+      taxAmount: lineTax,
+      totalAmount: lineTotal + lineTax,
+    };
+  });
+  const sale2Total = sale2Sub + sale2Tax;
+
+  await prisma.posSale.create({
+    data: {
+      companyId,
+      sessionId: session.id,
+      saleNumber: 2,
+      status: "COMPLETED",
+      paymentMethod: "CARD",
+      subtotal: sale2Sub,
+      taxAmount: sale2Tax,
+      totalAmount: sale2Total,
+      amountPaid: sale2Total,
+      changeGiven: 0,
+      createdBy: userId,
+      lines: { create: sale2LineData },
+    },
+  });
+
+  // Stock out for those demo sales
+  const issues = [
+    ...sale1Lines.map((l) => ({ productServiceId: l.product.id, quantity: l.qty })),
+    ...sale2Lines.map((l) => ({ productServiceId: l.product.id, quantity: l.qty })),
+  ];
+  await prisma.stockMovement.createMany({
+    data: issues.map((l) => ({
+      companyId,
+      warehouseId,
+      productServiceId: l.productServiceId,
+      type: "GOODS_ISSUE" as const,
+      quantity: l.quantity,
+      reference: "POS-DEMO",
+      sourceDocumentType: "POS_SALE",
+      notes: "Demo POS sales",
+      movementDate: daysAgo(1),
+      createdBy: userId,
+    })),
+  });
+
+  // Leave no OPEN session — user opens a fresh one in the UI.
+  void register;
 }
 
 // --------------------------------------------------------------------------

@@ -63,6 +63,8 @@ export class DocumentSequenceService {
         return `INV-${fiscalYear}-`;
       case "JOURNAL_ENTRY":
         return `JE-${fiscalYear}-`;
+      case "CREDIT_NOTE":
+        return `CN-${fiscalYear}-`;
     }
   }
 

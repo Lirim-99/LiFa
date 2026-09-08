@@ -75,6 +75,10 @@ company and the 5 login users, run the **demo** seed **once** against the live D
 | Faton Qerimi | accountant | `faton.qerimi@lifa.demo` |
 | Vali Berisha | viewer | `viewer@lifa.demo` |
 
+Full walkthrough (including POS): see **`TESTING.md`**.
+
+The demo seed also creates POS register **Arka 1**, a main warehouse with stock, retail products (water, coffee, notebooks, pens), and sample closed-session sales.
+
 ---
 
 ## 4. Frontend — Vercel (free)

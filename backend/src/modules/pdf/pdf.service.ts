@@ -5,7 +5,7 @@ import type { TDocumentDefinitions, Content, TableCell } from "pdfmake/interface
 
 // pdfmake Node.js usage
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const PdfPrinter = require("pdfmake");
+const PdfPrinter = require("pdfmake/js/Printer").default;
 
 const FONTS_DIR = path.join(__dirname, "..", "..", "..", "node_modules", "pdfmake", "build", "fonts");
 
