@@ -1,5 +1,6 @@
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
+import { DEFAULT_ACCOUNT_ROLE_CODES } from "../src/modules/accounting/data/default-chart-of-accounts";
 import { givenAUser } from "./setup/fixtures";
 import { createTestApp } from "./setup/test-app";
 import { disconnectTestPrisma, getTestPrisma, resetTestDb } from "./setup/test-db";
@@ -59,12 +60,10 @@ describe("Companies (e2e)", () => {
     const companyTaxRates = await prisma.taxRate.findMany({ where: { companyId } });
     expect(companyTaxRates.length).toBeGreaterThanOrEqual(3);
 
-    // Account defaults populated (5 roles).
+    const expectedRoles = Object.keys(DEFAULT_ACCOUNT_ROLE_CODES).sort();
     const defaults = await prisma.companyAccountDefaults.findMany({ where: { companyId } });
-    expect(defaults).toHaveLength(5);
-    expect(defaults.map((d) => d.accountRole).sort()).toEqual(
-      ["ACCOUNTS_RECEIVABLE", "BANK", "CASH", "SALES_REVENUE", "VAT_PAYABLE"].sort(),
-    );
+    expect(defaults).toHaveLength(expectedRoles.length);
+    expect(defaults.map((d) => d.accountRole).sort()).toEqual(expectedRoles);
 
     // Audit log: COMPANY/CREATED.
     const audit = await prisma.auditLog.findFirst({

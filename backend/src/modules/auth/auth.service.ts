@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
@@ -10,6 +11,7 @@ export interface JwtPayload {
   sub: string; // user id
   email: string;
   type: "access" | "refresh";
+  jti: string;
 }
 
 export interface AuthTokens {
@@ -86,8 +88,18 @@ export class AuthService {
       this.config.get<string>("JWT_REFRESH_EXPIRES_IN") ?? "7d",
     );
 
-    const accessPayload: JwtPayload = { sub: args.userId, email: args.email, type: "access" };
-    const refreshPayload: JwtPayload = { sub: args.userId, email: args.email, type: "refresh" };
+    const accessPayload: JwtPayload = {
+      sub: args.userId,
+      email: args.email,
+      type: "access",
+      jti: randomUUID(),
+    };
+    const refreshPayload: JwtPayload = {
+      sub: args.userId,
+      email: args.email,
+      type: "refresh",
+      jti: randomUUID(),
+    };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(accessPayload, { expiresIn: accessSeconds }),
