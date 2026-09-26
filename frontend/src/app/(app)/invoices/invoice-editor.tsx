@@ -410,12 +410,17 @@ export function InvoiceEditor({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() =>
-                  downloadPdf(
-                    `/invoices/${existing.id}/pdf`,
-                    `${existing.invoiceNumber ?? "invoice"}.pdf`,
-                  )
-                }
+                onClick={async () => {
+                  setSubmitError(null);
+                  try {
+                    await downloadPdf(
+                      `/invoices/${existing.id}/pdf`,
+                      `${existing.invoiceNumber ?? "invoice"}.pdf`,
+                    );
+                  } catch (err) {
+                    setSubmitError(err instanceof Error ? err.message : t("invoices.failed"));
+                  }
+                }}
               >
                 PDF ↓
               </Button>

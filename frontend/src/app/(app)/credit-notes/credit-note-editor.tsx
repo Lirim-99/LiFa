@@ -300,12 +300,17 @@ export function CreditNoteEditor({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() =>
-                  downloadPdf(
-                    `/credit-notes/${existing.id}/pdf`,
-                    `${existing.creditNoteNumber ?? "credit-note"}.pdf`,
-                  )
-                }
+                onClick={async () => {
+                  setSubmitError(null);
+                  try {
+                    await downloadPdf(
+                      `/credit-notes/${existing.id}/pdf`,
+                      `${existing.creditNoteNumber ?? "credit-note"}.pdf`,
+                    );
+                  } catch (err) {
+                    setSubmitError(err instanceof Error ? err.message : String(err));
+                  }
+                }}
               >
                 PDF ↓
               </Button>

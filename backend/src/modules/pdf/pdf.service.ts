@@ -1,13 +1,30 @@
 import { Injectable } from "@nestjs/common";
+import * as fs from "fs";
 import * as path from "path";
 import * as QRCode from "qrcode";
 import type { TDocumentDefinitions, Content, TableCell } from "pdfmake/interfaces";
 
-// pdfmake Node.js usage
+// pdfmake 0.3 server entry is a singleton (not a constructor).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const PdfPrinter = require("pdfmake/js/Printer").default;
+const pdfmake = require("pdfmake");
 
-const FONTS_DIR = path.join(__dirname, "..", "..", "..", "node_modules", "pdfmake", "build", "fonts");
+function resolveFontsDir(): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pkgDir = path.dirname(require.resolve("pdfmake/package.json"));
+  const candidates = [
+    path.join(pkgDir, "build", "fonts"),
+    path.join(pkgDir, "fonts"),
+  ];
+  const found = candidates.find((dir) =>
+    fs.existsSync(path.join(dir, "Roboto", "Roboto-Regular.ttf")),
+  );
+  if (!found) {
+    throw new Error("pdfmake Roboto fonts were not found");
+  }
+  return found;
+}
+
+const FONTS_DIR = resolveFontsDir();
 
 const fonts = {
   Roboto: {
@@ -88,10 +105,11 @@ export interface PdfDocumentData {
 
 @Injectable()
 export class PdfService {
-  private readonly printer: InstanceType<typeof PdfPrinter>;
-
   constructor() {
-    this.printer = new PdfPrinter(fonts);
+    pdfmake.setFonts(fonts);
+    // Roboto files live inside node_modules; QR images are data URLs, not remote fetches.
+    pdfmake.setLocalAccessPolicy(() => true);
+    pdfmake.setUrlAccessPolicy((url: string) => url.startsWith("data:"));
   }
 
   async generateDocument(data: PdfDocumentData): Promise<Buffer> {
@@ -425,13 +443,6 @@ export class PdfService {
   }
 
   private renderToBuffer(docDefinition: TDocumentDefinitions): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const doc = this.printer.createPdfKitDocument(docDefinition);
-      const chunks: Buffer[] = [];
-      doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-      doc.on("end", () => resolve(Buffer.concat(chunks)));
-      doc.on("error", (err: Error) => reject(err));
-      doc.end();
-    });
+    return pdfmake.createPdf(docDefinition).getBuffer();
   }
 }

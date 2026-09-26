@@ -430,12 +430,17 @@ export function BillEditor({
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() =>
-                    downloadPdf(
-                      `/bills/${existing.id}/pdf`,
-                      `BILL-${existing.billNumber ?? "draft"}.pdf`,
-                    )
-                  }
+                  onClick={async () => {
+                    setSubmitError(null);
+                    try {
+                      await downloadPdf(
+                        `/bills/${existing.id}/pdf`,
+                        `BILL-${existing.billNumber ?? "draft"}.pdf`,
+                      );
+                    } catch (err) {
+                      setSubmitError(err instanceof Error ? err.message : t("bills.failed"));
+                    }
+                  }}
                 >
                   PDF ↓
                 </Button>
