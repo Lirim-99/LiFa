@@ -288,17 +288,22 @@ export class PosService {
   // ===================================================================
 
   async searchProducts(companyId: string, query: string) {
+    const q = query.trim();
     return this.prisma.productService.findMany({
       where: {
         companyId,
         isActive: true,
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { sku: { contains: query, mode: "insensitive" } },
-        ],
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { sku: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
       },
-      take: 20,
-      orderBy: { name: "asc" },
+      take: q ? 40 : 200,
+      orderBy: [{ type: "asc" }, { name: "asc" }],
       include: { defaultTaxRate: true },
     });
   }

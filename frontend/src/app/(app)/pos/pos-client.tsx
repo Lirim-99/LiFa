@@ -32,6 +32,23 @@ interface CartItem {
   taxInclusive: boolean;
 }
 
+const TILE_COLORS = [
+  "bg-sky-600",
+  "bg-emerald-600",
+  "bg-amber-600",
+  "bg-rose-600",
+  "bg-violet-600",
+  "bg-teal-600",
+  "bg-orange-600",
+  "bg-indigo-600",
+];
+
+function tileColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return TILE_COLORS[hash % TILE_COLORS.length]!;
+}
+
 // ===================== Main Component =====================
 
 export function PosClient() {
@@ -143,11 +160,22 @@ function RegisterView({ session }: { session: PosSession }) {
   const t = useT();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<"ALL" | "PRODUCT" | "SERVICE">("ALL");
   const [paymentMethod, setPaymentMethod] = useState<string>("CASH");
   const [showPayment, setShowPayment] = useState(false);
   const [showClose, setShowClose] = useState(false);
 
-  const { data: products } = usePosProducts(search);
+  const { data: products, isLoading: productsLoading } = usePosProducts("");
+  const visibleProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (products ?? []).filter((p) => {
+      if (kind !== "ALL" && p.type !== kind) return false;
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q);
+    });
+  }, [products, kind, search]);
+  const hasProducts = (products ?? []).some((p) => p.type === "PRODUCT");
+  const hasServices = (products ?? []).some((p) => p.type === "SERVICE");
   const { data: sales } = useSessionSales(session.id);
   const createSale = useCreateSale();
   const closeSession = useCloseSession();
@@ -226,10 +254,13 @@ function RegisterView({ session }: { session: PosSession }) {
     closeSession.mutate({ sessionId: session.id, closingBalance: Number(closingBalance) });
   };
 
+  const qtyInCart = (productId: string) =>
+    cart.find((i) => i.productServiceId === productId)?.quantity ?? 0;
+
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col lg:flex-row gap-4 p-4">
-      {/* Left: Product search + grid */}
-      <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+    <div className="-mx-6 -my-8 flex h-[calc(100dvh-3.5rem)] flex-col bg-slate-100 sm:-mx-10 lg:flex-row dark:bg-zinc-950">
+      {/* Left: touch product board */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 sm:p-4">
         <div className="flex items-center gap-2">
           <Badge variant="default">{session.register.name}</Badge>
           <span className="text-sm text-zinc-500">
@@ -252,37 +283,75 @@ function RegisterView({ session }: { session: PosSession }) {
           autoFocus
         />
 
-        {search.length > 0 && products && products.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 overflow-y-auto max-h-[60vh]">
-            {products.map((p) => (
+        {(hasProducts && hasServices) && (
+          <div className="flex gap-2">
+            {(
+              [
+                ["ALL", t("pos.allProducts")],
+                ["PRODUCT", t("pos.goods")],
+                ["SERVICE", t("pos.services")],
+              ] as const
+            ).map(([value, label]) => (
               <button
-                key={p.id}
-                onClick={() => addToCart(p)}
-                className="rounded-lg border p-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition"
+                key={value}
+                type="button"
+                onClick={() => setKind(value)}
+                className={`rounded-full px-4 py-2 text-sm font-medium ${
+                  kind === value
+                    ? "bg-sky-600 text-white"
+                    : "bg-white text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-200 dark:ring-zinc-700"
+                }`}
               >
-                <p className="text-sm font-medium truncate">{p.name}</p>
-                <p className="text-xs text-zinc-500">{p.sku ?? "—"}</p>
-                <p className="text-sm font-bold mt-1">
-                  &euro;{Number(p.salePrice ?? 0).toFixed(2)}
-                </p>
+                {label}
               </button>
             ))}
           </div>
         )}
 
-        {search.length > 0 && products && products.length === 0 && (
-          <p className="text-sm text-zinc-400 py-4 text-center">{t("pos.noProducts")}</p>
-        )}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {productsLoading && (
+            <p className="py-8 text-center text-sm text-zinc-400">{t("common.loading")}</p>
+          )}
+          {!productsLoading && visibleProducts.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+              {visibleProducts.map((p) => {
+                const qty = qtyInCart(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => addToCart(p)}
+                    className={`relative flex min-h-28 flex-col justify-between rounded-2xl p-3 text-left text-white shadow-sm transition active:scale-[0.98] ${tileColor(p.id)}`}
+                  >
+                    {qty > 0 && (
+                      <span className="absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-1.5 text-sm font-bold text-zinc-900">
+                        {qty}
+                      </span>
+                    )}
+                    <span className="line-clamp-3 pr-8 text-sm font-semibold leading-tight">
+                      {p.name}
+                    </span>
+                    <span className="text-lg font-bold">
+                      &euro;{Number(p.salePrice ?? 0).toFixed(2)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {!productsLoading && visibleProducts.length === 0 && (
+            <p className="py-8 text-center text-sm text-zinc-400">{t("pos.noProducts")}</p>
+          )}
+        </div>
 
-        {/* Recent sales */}
-        {!search && sales && sales.length > 0 && (
-          <div className="mt-4 overflow-y-auto">
-            <h3 className="text-sm font-medium text-zinc-500 mb-2">{t("pos.recentSales")}</h3>
+        {sales && sales.length > 0 && (
+          <div className="max-h-28 shrink-0 overflow-y-auto rounded-xl bg-white p-2 dark:bg-zinc-900">
+            <h3 className="mb-1 px-1 text-xs font-medium text-zinc-500">{t("pos.recentSales")}</h3>
             <div className="space-y-1">
-              {sales.slice(0, 10).map((s) => (
+              {sales.slice(0, 5).map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between rounded border px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded px-2 py-1 text-sm"
                 >
                   <span className="font-mono">#{s.saleNumber}</span>
                   <span>&euro;{Number(s.totalAmount).toFixed(2)}</span>
@@ -297,7 +366,7 @@ function RegisterView({ session }: { session: PosSession }) {
       </div>
 
       {/* Right: Cart */}
-      <div className="w-full lg:w-96 flex flex-col border rounded-xl bg-white dark:bg-zinc-900 shadow-sm">
+      <div className="flex h-[38%] min-h-0 w-full flex-col border-t bg-white shadow-sm dark:bg-zinc-900 lg:h-auto lg:w-96 lg:shrink-0 lg:border-l lg:border-t-0">
         <div className="p-4 border-b">
           <h2 className="font-semibold text-lg">{t("pos.cart")}</h2>
         </div>

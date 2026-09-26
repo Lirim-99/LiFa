@@ -148,6 +148,5 @@ export function usePosProducts(query: string) {
   return useQuery({
     queryKey: posKeys.products(query),
     queryFn: () => apiFetch<PosProduct[]>(`/pos/products?q=${encodeURIComponent(query)}`),
-    enabled: query.length > 0,
   });
 }
