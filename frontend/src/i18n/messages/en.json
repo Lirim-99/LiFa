@@ -17,6 +17,7 @@
     "search": "Search",
     "from": "From",
     "to": "To",
+    "add": "Add",
     "comingSoon": "coming soon",
     "pagination": "Page {page} of {totalPages} · {total} total",
     "monthLong": {

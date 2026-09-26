@@ -17,6 +17,7 @@
     "search": "Kërko",
     "from": "Nga",
     "to": "Deri",
+    "add": "Shto",
     "comingSoon": "së shpejti",
     "pagination": "Faqja {page} nga {totalPages} · {total} gjithsej",
     "monthLong": {
