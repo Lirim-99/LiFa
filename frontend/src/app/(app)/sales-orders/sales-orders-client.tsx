@@ -8,6 +8,7 @@ import { useT } from "@/i18n/client";
 import {
   useCancelOrder,
   useConfirmOrder,
+  useConvertOrderToInvoice,
   useSalesOrders,
   type SalesOrder,
 } from "@/lib/queries/quotes";
@@ -27,6 +28,7 @@ export function SalesOrdersClient() {
   const { data, isLoading } = useSalesOrders({ page, limit: 25, status: statusFilter || undefined });
   const confirmOrder = useConfirmOrder();
   const cancelOrder = useCancelOrder();
+  const convertOrder = useConvertOrderToInvoice();
 
   const orders = data?.data ?? [];
   const meta = data?.meta;
@@ -83,6 +85,7 @@ export function SalesOrdersClient() {
                     t={t}
                     onConfirm={() => confirmOrder.mutate(o.id)}
                     onCancel={() => cancelOrder.mutate(o.id)}
+                    onInvoice={() => convertOrder.mutate(o.id)}
                   />
                 ))}
               </tbody>
@@ -115,11 +118,13 @@ function OrderRow({
   t,
   onConfirm,
   onCancel,
+  onInvoice,
 }: {
   order: SalesOrder;
   t: ReturnType<typeof useT>;
   onConfirm: () => void;
   onCancel: () => void;
+  onInvoice: () => void;
 }) {
   return (
     <tr className="border-b last:border-0">
@@ -142,7 +147,10 @@ function OrderRow({
             </>
           )}
           {(order.status === "CONFIRMED" || order.status === "PARTIALLY_INVOICED") && (
-            <Button size="sm" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
+            <>
+              <Button size="sm" onClick={onInvoice}>{t("salesOrders.createInvoice")}</Button>
+              <Button size="sm" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
+            </>
           )}
         </div>
       </td>

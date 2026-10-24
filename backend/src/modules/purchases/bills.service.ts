@@ -204,7 +204,10 @@ export class BillsService {
       const bill = await tx.bill.findFirst({
         where: { id, companyId },
         include: {
-          lines: { include: { taxRate: true }, orderBy: { lineNumber: "asc" } },
+          lines: {
+            include: { taxRate: true, productService: { select: { type: true } } },
+            orderBy: { lineNumber: "asc" },
+          },
           contact: true,
         },
       });
@@ -255,6 +258,12 @@ export class BillsService {
         AccountRole.ACCOUNTS_PAYABLE,
       );
       const defaultExpenseId = await this.lookupAccountDefault(tx, companyId, AccountRole.EXPENSE);
+      const stocksInventory = recalc.some(
+        (r) => r.line.productService?.type === "PRODUCT" && !r.line.expenseAccountId,
+      );
+      const inventoryAccountId = stocksInventory
+        ? await this.lookupAccountDefault(tx, companyId, AccountRole.INVENTORY)
+        : null;
       const vatAccountId = DecimalUtil.isPositive(totals.taxAmount)
         ? await this.lookupAccountDefault(tx, companyId, AccountRole.VAT_RECEIVABLE)
         : null;
@@ -285,12 +294,14 @@ export class BillsService {
       const journalLines: Prisma.JournalEntryLineCreateManyInput[] = [];
       let lineNo = 1;
 
-      // DEBIT per-line expense (line override or company default).
+      // DEBIT per-line expense, or Inventory when the line is a stocked product
+      // with no explicit expense account.
       for (const r of recalc) {
+        const toInventory = r.line.productService?.type === "PRODUCT" && !r.line.expenseAccountId;
         journalLines.push({
           journalEntryId: journalEntry.id,
           lineNumber: lineNo++,
-          accountId: r.line.expenseAccountId ?? defaultExpenseId,
+          accountId: toInventory && inventoryAccountId ? inventoryAccountId : (r.line.expenseAccountId ?? defaultExpenseId),
           description: r.line.description ?? null,
           debitAmount: r.calc.netAmount,
           creditAmount: 0,
@@ -348,6 +359,32 @@ export class BillsService {
         include: { lines: { orderBy: { lineNumber: "asc" } } },
       });
 
+      const stockLines = recalc
+        .filter((r) => r.line.productService?.type === "PRODUCT" && r.line.productServiceId)
+        .map((r) => {
+          const qty = Number(r.line.quantity);
+          return {
+            productServiceId: r.line.productServiceId!,
+            quantity: qty,
+            unitCost: qty > 0 ? Number(r.calc.netAmount) / qty : 0,
+          };
+        });
+      if (stockLines.length > 0) {
+        await this.inventory.createDocumentMovements(
+          companyId,
+          userId,
+          {
+            documentType: "BILL",
+            documentId: bill.id,
+            reference: bill.billNumber,
+            movementType: "GOODS_RECEIPT",
+            movementDate: bill.billDate,
+            lines: stockLines,
+          },
+          tx,
+        );
+      }
+
       await this.audit.log(
         {
           companyId,
@@ -362,22 +399,6 @@ export class BillsService {
       );
 
       return result;
-    });
-
-    // Best-effort: create GOODS_RECEIPT stock movements for product lines
-    await this.inventory.createDocumentMovements(companyId, userId, {
-      documentType: "BILL",
-      documentId: posted.id,
-      reference: posted.billNumber ?? posted.id,
-      movementType: "GOODS_RECEIPT",
-      movementDate: posted.billDate,
-      lines: posted.lines
-        .filter((l) => l.productServiceId)
-        .map((l) => ({
-          productServiceId: l.productServiceId!,
-          quantity: Number(l.quantity),
-          unitCost: Number(l.unitPrice),
-        })),
     });
 
     return posted;
@@ -465,6 +486,8 @@ export class BillsService {
         where: { id: bill.id },
         data: { status: "VOID", voidedJournalEntryId: reversal.id },
       });
+
+      await this.inventory.reverseDocumentMovements(tx, companyId, userId, bill.id, today);
 
       await this.audit.log(
         {

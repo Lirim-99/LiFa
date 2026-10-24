@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { AccountType } from "@prisma/client";
+import { AccountType, Prisma } from "@prisma/client";
 import { DecimalUtil } from "../../common/utils/decimal.helper";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -422,6 +422,105 @@ export class ReportsService {
       rows,
       totals,
     };
+  }
+
+  // ===================================================================
+  // VAT return — output VAT minus input VAT, from the ledger
+  // ===================================================================
+
+  async vatReturn(companyId: string, from: Date, to: Date) {
+    const [outputAccountId, inputAccountId] = await Promise.all([
+      this.accountIdForRole(companyId, "VAT_PAYABLE"),
+      this.accountIdForRole(companyId, "VAT_RECEIVABLE"),
+    ]);
+
+    const outputVat = outputAccountId
+      ? await this.netAccountMovement(companyId, outputAccountId, from, to, "CREDIT")
+      : DecimalUtil.zero();
+    const inputVat = inputAccountId
+      ? await this.netAccountMovement(companyId, inputAccountId, from, to, "DEBIT")
+      : DecimalUtil.zero();
+    const netVat = DecimalUtil.subtract(outputVat, inputVat);
+
+    const [invoices, bills] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          status: { in: ["ISSUED", "PARTIALLY_PAID", "PAID"] },
+          issueDate: { gte: from, lte: to },
+        },
+        include: { lines: { include: { taxRate: true } } },
+      }),
+      this.prisma.bill.findMany({
+        where: {
+          companyId,
+          status: { in: ["OPEN", "PARTIALLY_PAID", "PAID"] },
+          billDate: { gte: from, lte: to },
+        },
+        include: { lines: { include: { taxRate: true } } },
+      }),
+    ]);
+
+    return {
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+      outputVat: DecimalUtil.toString(outputVat),
+      inputVat: DecimalUtil.toString(inputVat),
+      netVat: DecimalUtil.toString(netVat),
+      position: DecimalUtil.isNegative(netVat) ? "RECEIVABLE" : "PAYABLE",
+      salesByRate: this.groupVatLines(invoices.flatMap((doc) => doc.lines)),
+      purchasesByRate: this.groupVatLines(bills.flatMap((doc) => doc.lines)),
+    };
+  }
+
+  private async accountIdForRole(companyId: string, role: "VAT_PAYABLE" | "VAT_RECEIVABLE") {
+    const row = await this.prisma.companyAccountDefaults.findUnique({
+      where: { companyId_accountRole: { companyId, accountRole: role } },
+    });
+    return row?.accountId ?? null;
+  }
+
+  private async netAccountMovement(
+    companyId: string,
+    accountId: string,
+    from: Date,
+    to: Date,
+    normal: "DEBIT" | "CREDIT",
+  ) {
+    const sums = await this.prisma.journalEntryLine.aggregate({
+      where: {
+        accountId,
+        journalEntry: { companyId, status: "POSTED", entryDate: { gte: from, lte: to } },
+      },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+    const debit = sums._sum.debitAmount ?? "0";
+    const credit = sums._sum.creditAmount ?? "0";
+    return normal === "CREDIT" ? DecimalUtil.subtract(credit, debit) : DecimalUtil.subtract(debit, credit);
+  }
+
+  private groupVatLines(
+    lines: {
+      netAmount: Prisma.Decimal;
+      taxAmount: Prisma.Decimal;
+      taxRate: { code: string; name: string; rate: Prisma.Decimal } | null;
+    }[],
+  ) {
+    const groups = new Map<string, { code: string; name: string; rate: string; net: string; tax: string }>();
+    for (const line of lines) {
+      const key = line.taxRate?.code ?? "NONE";
+      const current = groups.get(key) ?? {
+        code: line.taxRate?.code ?? "—",
+        name: line.taxRate?.name ?? "No tax",
+        rate: line.taxRate ? DecimalUtil.toString(line.taxRate.rate) : "0.0000",
+        net: "0",
+        tax: "0",
+      };
+      current.net = DecimalUtil.toString(DecimalUtil.add(current.net, line.netAmount));
+      current.tax = DecimalUtil.toString(DecimalUtil.add(current.tax, line.taxAmount));
+      groups.set(key, current);
+    }
+    return Array.from(groups.values()).sort((a, b) => a.code.localeCompare(b.code));
   }
 
   // ===================================================================

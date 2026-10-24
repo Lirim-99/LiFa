@@ -11,6 +11,7 @@ import { DecimalUtil } from "../../common/utils/decimal.helper";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditAction, AuditEntityType, AuditService } from "../audit/audit.service";
 import { FiscalizationService } from "../fiscalization/fiscalization.service";
+import { InventoryService } from "../inventory/inventory.service";
 import { InvoiceCalc, type LineCalcOutput } from "../sales/invoice-calc.helper";
 import { CreateCreditNoteDto, CreateCreditNoteLineDto } from "./dto/create-credit-note.dto";
 import { CreditNoteFilterDto } from "./dto/credit-note-filter.dto";
@@ -23,6 +24,7 @@ export class CreditNotesService {
     private readonly docSeq: DocumentSequenceService,
     private readonly audit: AuditService,
     private readonly fiscalization: FiscalizationService,
+    private readonly inventory: InventoryService,
   ) {}
 
   // ===================================================================
@@ -220,7 +222,10 @@ export class CreditNotesService {
       const cn = await tx.creditNote.findFirst({
         where: { id, companyId },
         include: {
-          lines: { include: { taxRate: true }, orderBy: { lineNumber: "asc" } },
+          lines: {
+            include: { taxRate: true, productService: { select: { id: true, type: true } } },
+            orderBy: { lineNumber: "asc" },
+          },
           contact: true,
         },
       });
@@ -332,6 +337,59 @@ export class CreditNotesService {
           currency: cn.currency,
           contactId: cn.contactId,
         });
+
+        const returnLines = cn.lines.filter(
+          (l) => l.productServiceId && l.productService?.type === "PRODUCT",
+        );
+        const returnCosts = await this.inventory.issueCosts(
+          tx,
+          companyId,
+          returnLines.map((l) => ({ productServiceId: l.productServiceId!, quantity: l.quantity })),
+        );
+        const priced = returnCosts.filter((c) => c.amount.gt(0));
+        if (priced.length > 0) {
+          const inventoryAccountId = await this.lookupAccountDefault(tx, companyId, AccountRole.INVENTORY);
+          const cogsAccountId = await this.lookupAccountDefault(tx, companyId, AccountRole.COGS);
+          for (const cost of priced) {
+            journalLines.push({
+              journalEntryId: "",
+              lineNumber: lineNo++,
+              accountId: inventoryAccountId,
+              description: "Inventory returned",
+              debitAmount: cost.amount,
+              creditAmount: 0,
+              currency: cn.currency,
+            });
+            journalLines.push({
+              journalEntryId: "",
+              lineNumber: lineNo++,
+              accountId: cost.expenseAccountId ?? cogsAccountId,
+              description: "Cost of goods sold",
+              debitAmount: 0,
+              creditAmount: cost.amount,
+              currency: cn.currency,
+            });
+          }
+        }
+        if (returnCosts.length > 0) {
+          await this.inventory.createDocumentMovements(
+            companyId,
+            userId,
+            {
+              documentType: "CREDIT_NOTE",
+              documentId: cn.id,
+              reference: String(cnNumber),
+              movementType: "RETURN_IN",
+              movementDate: cn.issueDate,
+              lines: returnCosts.map((c) => ({
+                productServiceId: c.productServiceId,
+                quantity: c.quantity,
+                unitCost: c.unitCost,
+              })),
+            },
+            tx,
+          );
+        }
       } else {
         // Purchase credit note (vendor credit) reverses a bill posting:
         // DEBIT Accounts Payable (reduce what we owe vendor)
@@ -339,6 +397,12 @@ export class CreditNotesService {
         // CREDIT VAT Receivable (reduce input VAT, if any)
         const apAccountId = await this.lookupAccountDefault(tx, companyId, AccountRole.ACCOUNTS_PAYABLE);
         const expenseAccountId = await this.lookupAccountDefault(tx, companyId, AccountRole.EXPENSE);
+        const returnsStock = recalc.some(
+          (r) => r.line.productService?.type === "PRODUCT" && !r.line.accountId && r.line.productServiceId,
+        );
+        const inventoryAccountId = returnsStock
+          ? await this.lookupAccountDefault(tx, companyId, AccountRole.INVENTORY)
+          : null;
         const vatRecAccountId = DecimalUtil.isPositive(totals.taxAmount)
           ? await this.lookupAccountDefault(tx, companyId, AccountRole.VAT_RECEIVABLE)
           : null;
@@ -355,12 +419,23 @@ export class CreditNotesService {
           contactId: cn.contactId,
         });
 
-        // CREDIT per-line expense
+        // CREDIT per-line expense, or Inventory when returning a stocked product.
+        const vendorReturnLines: { productServiceId: string; quantity: number; unitCost: number }[] = [];
         for (const r of recalc) {
+          const stock =
+            r.line.productService?.type === "PRODUCT" && !r.line.accountId && r.line.productServiceId;
+          if (stock && r.line.productServiceId) {
+            const qty = Number(r.line.quantity);
+            vendorReturnLines.push({
+              productServiceId: r.line.productServiceId,
+              quantity: qty,
+              unitCost: qty > 0 ? Number(r.calc.netAmount) / qty : 0,
+            });
+          }
           journalLines.push({
             journalEntryId: "",
             lineNumber: lineNo++,
-            accountId: r.line.accountId ?? expenseAccountId,
+            accountId: stock && inventoryAccountId ? inventoryAccountId : (r.line.accountId ?? expenseAccountId),
             description: r.line.description ?? null,
             debitAmount: 0,
             creditAmount: r.calc.netAmount,
@@ -381,6 +456,21 @@ export class CreditNotesService {
             currency: cn.currency,
             contactId: cn.contactId,
           });
+        }
+        if (vendorReturnLines.length > 0) {
+          await this.inventory.createDocumentMovements(
+            companyId,
+            userId,
+            {
+              documentType: "CREDIT_NOTE",
+              documentId: cn.id,
+              reference: String(cnNumber),
+              movementType: "RETURN_OUT",
+              movementDate: cn.issueDate,
+              lines: vendorReturnLines,
+            },
+            tx,
+          );
         }
       }
 
@@ -545,6 +635,8 @@ export class CreditNotesService {
       });
 
       // Audit
+      await this.inventory.reverseDocumentMovements(tx, companyId, userId, cn.id, new Date());
+
       await this.audit.log(
         {
           companyId,

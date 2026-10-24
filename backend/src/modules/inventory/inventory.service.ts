@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { Prisma, StockMovementType } from "@prisma/client";
 import { paginatedResponse, type PaginatedResponse } from "../../common/dto/paginated-response.dto";
 import { PrismaService } from "../../prisma/prisma.service";
+import { costOfIssue, runningInventoryValue, type CostMovement } from "./inventory-cost.helper";
 import type {
   CreateStockMovementDto,
   CreateWarehouseDto,
@@ -156,16 +157,18 @@ export class InventoryService {
       reference: string;
       movementType: StockMovementType;
       movementDate: Date;
-      lines: { productServiceId: string; quantity: number; unitCost?: number }[];
+      lines: { productServiceId: string; quantity: number | Prisma.Decimal; unitCost?: number | Prisma.Decimal }[];
     },
+    tx?: Prisma.TransactionClient,
   ) {
-    const defaultWarehouse = await this.prisma.warehouse.findFirst({
+    const db = tx ?? this.prisma;
+    const defaultWarehouse = await db.warehouse.findFirst({
       where: { companyId, isDefault: true, isActive: true },
     });
     if (!defaultWarehouse) return;
 
     const productIds = params.lines.map((l) => l.productServiceId);
-    const products = await this.prisma.productService.findMany({
+    const products = await db.productService.findMany({
       where: { id: { in: productIds }, companyId, type: "PRODUCT" },
       select: { id: true },
     });
@@ -188,7 +191,115 @@ export class InventoryService {
       }));
 
     if (movementData.length === 0) return;
-    await this.prisma.stockMovement.createMany({ data: movementData });
+    await db.stockMovement.createMany({ data: movementData });
+  }
+
+  /**
+   * Weighted-average cost for issuing product lines, applied in order so two
+   * lines of the same product in one document don't both see the old balance.
+   */
+  async issueCosts(
+    db: Prisma.TransactionClient | PrismaService,
+    companyId: string,
+    lines: { productServiceId: string; quantity: Prisma.Decimal.Value }[],
+  ): Promise<
+    {
+      productServiceId: string;
+      quantity: Prisma.Decimal;
+      unitCost: Prisma.Decimal;
+      amount: Prisma.Decimal;
+      expenseAccountId: string | null;
+    }[]
+  > {
+    const cache = new Map<string, CostMovement[]>();
+    const results: {
+      productServiceId: string;
+      quantity: Prisma.Decimal;
+      unitCost: Prisma.Decimal;
+      amount: Prisma.Decimal;
+      expenseAccountId: string | null;
+    }[] = [];
+
+    for (const line of lines) {
+      const product = await db.productService.findFirst({
+        where: { id: line.productServiceId, companyId, type: "PRODUCT" },
+        select: { id: true, purchasePrice: true, expenseAccountId: true },
+      });
+      if (!product) continue;
+
+      let movements = cache.get(product.id);
+      if (!movements) {
+        const rows = await db.stockMovement.findMany({
+          where: { companyId, productServiceId: product.id },
+          orderBy: [{ movementDate: "asc" }, { createdAt: "asc" }],
+          select: { type: true, quantity: true, unitCost: true },
+        });
+        movements = rows.map((row) => ({
+          type: row.type,
+          quantity: row.quantity,
+          unitCost: row.unitCost,
+        }));
+        cache.set(product.id, movements);
+      }
+
+      const state = runningInventoryValue(movements, product.purchasePrice ?? 0);
+      const cost = costOfIssue(state, line.quantity);
+      const quantity = new Prisma.Decimal(line.quantity);
+      movements.push({ type: "GOODS_ISSUE", quantity, unitCost: cost.unitCost });
+      results.push({
+        productServiceId: product.id,
+        quantity,
+        unitCost: cost.unitCost,
+        amount: cost.amount,
+        expenseAccountId: product.expenseAccountId,
+      });
+    }
+
+    return results;
+  }
+
+  /** Writes the opposite movement for each original document movement. */
+  async reverseDocumentMovements(
+    db: Prisma.TransactionClient,
+    companyId: string,
+    userId: string,
+    sourceDocumentId: string,
+    movementDate: Date,
+  ) {
+    const originals = await db.stockMovement.findMany({
+      where: { companyId, sourceDocumentId, notes: null },
+    });
+    if (originals.length === 0) return;
+
+    const opposite: Partial<Record<StockMovementType, StockMovementType>> = {
+      GOODS_ISSUE: "RETURN_IN",
+      GOODS_RECEIPT: "RETURN_OUT",
+      RETURN_IN: "GOODS_ISSUE",
+      RETURN_OUT: "GOODS_RECEIPT",
+    };
+
+    const rows = originals.flatMap((movement) => {
+      const type = opposite[movement.type];
+      if (!type) return [];
+      return [
+        {
+          companyId,
+          warehouseId: movement.warehouseId,
+          productServiceId: movement.productServiceId,
+          type,
+          quantity: movement.quantity,
+          unitCost: movement.unitCost,
+          reference: movement.reference,
+          sourceDocumentId,
+          sourceDocumentType: movement.sourceDocumentType,
+          notes: "reversal",
+          movementDate,
+          createdBy: userId,
+        },
+      ];
+    });
+    if (rows.length === 0) return;
+    await db.stockMovement.createMany({ data: rows });
   }
 
   // ===================================================================

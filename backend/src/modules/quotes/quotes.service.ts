@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, QuoteStatus, SalesOrderStatus } from "@prisma/client";
+import { DiscountType, Prisma, QuoteStatus, SalesOrderStatus } from "@prisma/client";
 import { paginatedResponse } from "../../common/dto/paginated-response.dto";
 import { PrismaService } from "../../prisma/prisma.service";
 import { DocumentSequenceService } from "../../common/services/document-sequence.service";
+import { InvoicesService } from "../sales/invoices.service";
 import type { CreateQuoteDto, CreateSalesOrderDto, OrderFilterDto, QuoteFilterDto, UpdateQuoteDto, UpdateSalesOrderDto } from "./dto";
 
 @Injectable()
@@ -10,6 +11,7 @@ export class QuotesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly docSeq: DocumentSequenceService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   // ===================================================================
@@ -315,5 +317,81 @@ export class QuotesService {
       data: { status: SalesOrderStatus.CANCELLED },
       include: { lines: true, contact: true },
     });
+  }
+
+  /** Creates a draft invoice for whatever quantity is not yet invoiced. */
+  async convertOrderToInvoice(companyId: string, orderId: string, userId: string) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: orderId, companyId },
+      include: {
+        contact: true,
+        lines: {
+          include: { productService: { select: { defaultTaxRateId: true } } },
+          orderBy: { lineNumber: "asc" },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException("Sales order not found");
+    if (order.status !== "CONFIRMED" && order.status !== "PARTIALLY_INVOICED") {
+      throw new BadRequestException("Only a confirmed order can be invoiced");
+    }
+
+    const existing = await this.prisma.invoice.findFirst({
+      where: { companyId, salesOrderId: order.id, status: { not: "VOID" } },
+    });
+    if (existing) throw new BadRequestException("This order already has an invoice");
+
+    const openLines = order.lines.filter((line) => new Prisma.Decimal(line.quantity).gt(line.invoicedQty));
+    if (openLines.length === 0) throw new BadRequestException("Nothing left to invoice");
+
+    const issueDate = new Date();
+    const dueDate = new Date(issueDate);
+    dueDate.setDate(dueDate.getDate() + (order.contact.paymentTermsDays ?? 0));
+
+    const invoice = await this.invoices.create(
+      companyId,
+      {
+        contactId: order.contactId,
+        issueDate,
+        dueDate,
+        currency: order.currency,
+        notes: order.orderNumber ? `Sales order ${order.orderNumber}` : "Sales order",
+        lines: openLines.map((line) => {
+          const remaining = new Prisma.Decimal(line.quantity).minus(line.invoicedQty);
+          const discount = new Prisma.Decimal(line.discountPercent);
+          return {
+            productServiceId: line.productServiceId ?? undefined,
+            description: line.description,
+            quantity: Number(remaining),
+            unitPrice: Number(line.unitPrice),
+            discountType: discount.gt(0) ? DiscountType.PERCENTAGE : undefined,
+            discountValue: discount.gt(0) ? Number(discount) : undefined,
+            taxRateId: line.productService?.defaultTaxRateId ?? undefined,
+          };
+        }),
+      },
+      userId,
+    );
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.invoice.update({ where: { id: invoice.id }, data: { salesOrderId: order.id } });
+        for (const line of openLines) {
+          await tx.salesOrderLine.update({
+            where: { id: line.id },
+            data: { invoicedQty: line.quantity },
+          });
+        }
+        await tx.salesOrder.update({
+          where: { id: order.id },
+          data: { status: SalesOrderStatus.INVOICED, invoicedAmount: invoice.totalAmount },
+        });
+      });
+    } catch (error) {
+      await this.invoices.delete(companyId, invoice.id);
+      throw error;
+    }
+
+    return invoice;
   }
 }

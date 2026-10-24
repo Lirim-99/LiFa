@@ -162,6 +162,33 @@ export interface ApAgingResponse {
   };
 }
 
+export interface VatRateRow {
+  code: string;
+  name: string;
+  rate: string;
+  net: string;
+  tax: string;
+}
+
+export interface VatReturnResponse {
+  from: string;
+  to: string;
+  outputVat: string;
+  inputVat: string;
+  netVat: string;
+  position: "PAYABLE" | "RECEIVABLE";
+  salesByRate: VatRateRow[];
+  purchasesByRate: VatRateRow[];
+}
+
+export function useVatReturn(from: string, to: string) {
+  return useQuery({
+    queryKey: ["reports", "vat-return", from, to],
+    queryFn: () => apiFetch<VatReturnResponse>(`/reports/vat-return?from=${from}&to=${to}`),
+    enabled: !!from && !!to,
+  });
+}
+
 export function useApAging(asOf: string) {
   return useQuery({
     queryKey: ["reports", "ap-aging", asOf],

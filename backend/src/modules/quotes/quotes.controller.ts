@@ -112,4 +112,14 @@ export class SalesOrdersController {
   cancel(@CurrentCompany("companyId") companyId: string, @Param("id", ParseUUIDPipe) id: string) {
     return this.quotesService.cancelOrder(companyId, id);
   }
+
+  @Post(":id/convert-to-invoice")
+  @RequirePermission("quotes.manage")
+  convertToInvoice(
+    @CurrentCompany("companyId") companyId: string,
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser("userId") userId: string,
+  ) {
+    return this.quotesService.convertOrderToInvoice(companyId, id, userId);
+  }
 }

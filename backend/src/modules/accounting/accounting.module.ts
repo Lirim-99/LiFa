@@ -6,6 +6,7 @@ import { CompanyAccountDefaultsController } from "./company-account-defaults.con
 import { CompanyAccountDefaultsService } from "./company-account-defaults.service";
 import { JournalEntriesController } from "./journal-entries.controller";
 import { JournalEntriesService } from "./journal-entries.service";
+import { LedgerPostingService } from "./ledger-posting.service";
 import { PeriodsController } from "./periods.controller";
 import { PeriodsService } from "./periods.service";
 
@@ -22,7 +23,14 @@ import { PeriodsService } from "./periods.service";
     PeriodsService,
     CompanyAccountDefaultsService,
     JournalEntriesService,
+    LedgerPostingService,
   ],
-  exports: [AccountsService, PeriodsService, CompanyAccountDefaultsService, JournalEntriesService],
+  exports: [
+    AccountsService,
+    PeriodsService,
+    CompanyAccountDefaultsService,
+    JournalEntriesService,
+    LedgerPostingService,
+  ],
 })
 export class AccountingModule {}

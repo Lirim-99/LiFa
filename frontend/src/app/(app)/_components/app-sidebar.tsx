@@ -100,6 +100,7 @@ const SECTIONS: { labelKey: string; items: NavItem[] }[] = [
       { href: "/reports/balance-sheet", labelKey: "nav.items.balanceSheet", icon: ChartBarIcon },
       { href: "/reports/ar-aging", labelKey: "nav.items.arAging", icon: ClipboardDocumentListIcon },
       { href: "/reports/ap-aging", labelKey: "nav.items.apAging", icon: ClipboardDocumentListIcon },
+      { href: "/reports/vat-return", labelKey: "nav.items.vatReturn", icon: ReceiptPercentIcon },
     ],
   },
   {

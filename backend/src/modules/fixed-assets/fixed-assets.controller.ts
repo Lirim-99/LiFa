@@ -45,17 +45,22 @@ export class FixedAssetsController {
 
   @Post("depreciate")
   @RequirePermission("accounting.create")
-  depreciate(@CurrentCompany("companyId") companyId: string, @Body() dto: RunDepreciationDto) {
-    return this.service.runDepreciation(companyId, dto);
+  depreciate(
+    @CurrentCompany("companyId") companyId: string,
+    @CurrentUser("userId") userId: string,
+    @Body() dto: RunDepreciationDto,
+  ) {
+    return this.service.runDepreciation(companyId, userId, dto);
   }
 
   @Post(":id/dispose")
   @RequirePermission("accounting.update")
   dispose(
     @CurrentCompany("companyId") companyId: string,
+    @CurrentUser("userId") userId: string,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() body: { disposalDate: string; disposalAmount: number },
   ) {
-    return this.service.dispose(companyId, id, body.disposalDate, body.disposalAmount);
+    return this.service.dispose(companyId, id, userId, body.disposalDate, body.disposalAmount);
   }
 }

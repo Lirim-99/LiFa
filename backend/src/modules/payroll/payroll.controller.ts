@@ -83,8 +83,9 @@ export class PayrollController {
   approveRun(
     @CurrentCompany("companyId") companyId: string,
     @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser("userId") userId: string,
   ) {
-    return this.payroll.approveRun(companyId, id);
+    return this.payroll.approveRun(companyId, id, userId);
   }
 
   @Post("runs/:id/mark-paid")
@@ -92,7 +93,8 @@ export class PayrollController {
   markPaid(
     @CurrentCompany("companyId") companyId: string,
     @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser("userId") userId: string,
   ) {
-    return this.payroll.markPaid(companyId, id);
+    return this.payroll.markPaid(companyId, id, userId);
   }
 }

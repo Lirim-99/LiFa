@@ -188,8 +188,10 @@ export class InvoicesService {
     if (current.status !== "DRAFT") {
       throw new BadRequestException("Only DRAFT invoices can be deleted");
     }
-    // Cascade on invoice_lines is configured in schema; just delete the parent.
-    await this.prisma.invoice.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      await this.releaseSalesOrder(tx, companyId, current.salesOrderId, id);
+      await tx.invoice.delete({ where: { id } });
+    });
   }
 
   // ===================================================================
@@ -338,6 +340,38 @@ export class InvoicesService {
         });
       }
 
+      const productLines = invoice.lines.filter((l) => l.productServiceId);
+      const issueCosts = await this.inventory.issueCosts(
+        tx,
+        companyId,
+        productLines.map((l) => ({ productServiceId: l.productServiceId!, quantity: l.quantity })),
+      );
+      const costing = issueCosts.filter((c) => c.amount.gt(0));
+      if (costing.length > 0) {
+        const inventoryAccountId = await this.lookupAccountDefault(tx, companyId, AccountRole.INVENTORY);
+        const cogsAccountId = await this.lookupAccountDefault(tx, companyId, AccountRole.COGS);
+        for (const cost of costing) {
+          journalLines.push({
+            journalEntryId: journalEntry.id,
+            lineNumber: lineNo++,
+            accountId: cost.expenseAccountId ?? cogsAccountId,
+            description: "Cost of goods sold",
+            debitAmount: cost.amount,
+            creditAmount: 0,
+            currency: invoice.currency,
+          });
+          journalLines.push({
+            journalEntryId: journalEntry.id,
+            lineNumber: lineNo++,
+            accountId: inventoryAccountId,
+            description: "Inventory",
+            debitAmount: 0,
+            creditAmount: cost.amount,
+            currency: invoice.currency,
+          });
+        }
+      }
+
       await tx.journalEntryLine.createMany({ data: journalLines });
 
       // 8. Balance check. If this fires, we have a calculation bug.
@@ -367,6 +401,26 @@ export class InvoicesService {
       });
 
       // 10. Audit.
+      if (issueCosts.length > 0) {
+        await this.inventory.createDocumentMovements(
+          companyId,
+          userId,
+          {
+            documentType: "INVOICE",
+            documentId: invoice.id,
+            reference: invoiceNumber,
+            movementType: "GOODS_ISSUE",
+            movementDate: invoice.issueDate,
+            lines: issueCosts.map((c) => ({
+              productServiceId: c.productServiceId,
+              quantity: c.quantity,
+              unitCost: c.unitCost,
+            })),
+          },
+          tx,
+        );
+      }
+
       await this.audit.log(
         {
           companyId,
@@ -386,23 +440,6 @@ export class InvoicesService {
     // Best-effort, post-commit: create a PENDING fiscal coupon when
     // fiscalization is enabled. Never blocks issuing — see FISCALIZATION.md.
     await this.fiscalization.onInvoiceIssued(companyId, issued.id);
-
-    // Best-effort: create GOODS_ISSUE stock movements for product lines
-    await this.inventory.createDocumentMovements(companyId, issued.createdBy, {
-      documentType: "INVOICE",
-      documentId: issued.id,
-      reference: issued.invoiceNumber ?? issued.id,
-      movementType: "GOODS_ISSUE",
-      movementDate: issued.issueDate,
-      lines: issued.lines
-        .filter((l) => l.productServiceId)
-        .map((l) => ({
-          productServiceId: l.productServiceId!,
-          quantity: Number(l.quantity),
-          unitCost: Number(l.unitPrice),
-        })),
-    });
-
     return issued;
   }
 
@@ -502,6 +539,9 @@ export class InvoicesService {
         data: { status: "VOID", voidedJournalEntryId: reversal.id },
       });
 
+      await this.inventory.reverseDocumentMovements(tx, companyId, userId, invoice.id, today);
+      await this.releaseSalesOrder(tx, companyId, invoice.salesOrderId);
+
       await this.audit.log(
         {
           companyId,
@@ -586,6 +626,33 @@ export class InvoicesService {
         taxRate: taxRate ? { rate: taxRate.rate, calculationType: taxRate.calculationType } : null,
       });
       return { input: line, calc };
+    });
+  }
+
+  /** Puts a sales order back to confirmed when its only live invoice is gone. */
+  private async releaseSalesOrder(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    salesOrderId: string | null,
+    exceptInvoiceId?: string,
+  ) {
+    if (!salesOrderId) return;
+    const others = await tx.invoice.count({
+      where: {
+        companyId,
+        salesOrderId,
+        status: { not: "VOID" },
+        ...(exceptInvoiceId ? { id: { not: exceptInvoiceId } } : {}),
+      },
+    });
+    if (others > 0) return;
+    await tx.salesOrderLine.updateMany({
+      where: { orderId: salesOrderId },
+      data: { invoicedQty: 0 },
+    });
+    await tx.salesOrder.update({
+      where: { id: salesOrderId },
+      data: { status: "CONFIRMED", invoicedAmount: 0 },
     });
   }
 

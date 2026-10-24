@@ -97,6 +97,7 @@
       "profitAndLoss": "Fitimi & humbja",
       "balanceSheet": "Bilanci i gjendjes",
       "arAging": "Vjetërsimi i të arkëtueshmeve",
+      "vatReturn": "Deklarata e TVSH-së",
       "settings": "Cilësimet e kompanisë",
       "users": "Përdoruesit",
       "payroll": "Listëpagesa",
@@ -537,6 +538,18 @@
         "b61to90": "61-90 ditë",
         "b91plus": "91+ ditë"
       }
+    },
+    "vatReturn": {
+      "title": "Deklarata e TVSH-së",
+      "description": "TVSH në dalje minus TVSH në hyrje për periudhën, nga regjistrimet e postuara.",
+      "outputVat": "TVSH në dalje (shitje)",
+      "inputVat": "TVSH në hyrje (blerje)",
+      "payable": "TVSH për t'u paguar",
+      "refund": "TVSH për t'u rimbursuar",
+      "salesByRate": "Shitjet sipas normës",
+      "purchasesByRate": "Blerjet sipas normës",
+      "net": "Neto",
+      "tax": "TVSH"
     }
   },
   "settings": {
@@ -825,7 +838,8 @@
     "status": "Statusi",
     "actions": "Veprimet",
     "total": "total",
-    "confirm": "Konfirmo"
+    "confirm": "Konfirmo",
+    "createInvoice": "Krijo faturë"
   },
   "pos": {
     "title": "Pika e Shitjes",

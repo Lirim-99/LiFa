@@ -50,4 +50,10 @@ export class ReportsController {
   apAging(@CurrentCompany("companyId") companyId: string, @Query() q: ArAgingQueryDto) {
     return this.reports.apAging(companyId, q.asOf ?? new Date());
   }
+
+  @Get("vat-return")
+  @RequirePermission("reports.read")
+  vatReturn(@CurrentCompany("companyId") companyId: string, @Query() q: DateRangeQueryDto) {
+    return this.reports.vatReturn(companyId, q.from, q.to);
+  }
 }

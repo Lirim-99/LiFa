@@ -53,6 +53,17 @@ enum AccountRole {
   ACCOUNTS_PAYABLE // Phase 1 (purchases/AP)
   VAT_RECEIVABLE // input VAT on purchases
   EXPENSE // default expense account for bill lines
+  INVENTORY
+  COGS
+  SALARIES
+  WAGES_PAYABLE
+  PENSION_PAYABLE
+  WAGE_TAX_PAYABLE
+  FIXED_ASSET
+  ACCUMULATED_DEPRECIATION
+  DEPRECIATION_EXPENSE
+  DISPOSAL_GAIN
+  DISPOSAL_LOSS
 }
 
 enum ProductServiceType {
@@ -561,6 +572,10 @@ model JournalEntry {
   voidedBills        Bill[]             @relation("BillVoidedEntry")
   postedCreditNotes  CreditNote[]       @relation("CreditNotePostedEntry")
   voidedCreditNotes  CreditNote[]       @relation("CreditNoteVoidedEntry")
+  payrollAccruals    PayrollRun[]       @relation("PayrollAccrual")
+  payrollPayments    PayrollRun[]       @relation("PayrollPayment")
+  depreciationEntries DepreciationEntry[]
+  assetDisposals     FixedAsset[]       @relation("AssetDisposal")
 
   @@index([companyId])
   @@index([companyId, entryDate, status])
@@ -620,12 +635,14 @@ model FixedAsset {
   disposalDate         DateTime?           @map("disposal_date") @db.Date
   disposalAmount       Decimal?            @map("disposal_amount") @db.Decimal(19, 4)
   notes                String?
+  disposalJournalEntryId String?           @unique @map("disposal_journal_entry_id") @db.Uuid
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @updatedAt @map("updated_at")
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   creator             User                 @relation("FixedAssetCreatedBy", fields: [createdBy], references: [id])
+  disposalJournalEntry JournalEntry?       @relation("AssetDisposal", fields: [disposalJournalEntryId], references: [id])
   depreciationEntries DepreciationEntry[]
 
   @@index([companyId])
@@ -634,15 +651,18 @@ model FixedAsset {
 }
 
 model DepreciationEntry {
-  id          String   @id @default(uuid()) @db.Uuid
-  assetId     String   @map("asset_id") @db.Uuid
-  periodDate  DateTime @map("period_date") @db.Date
-  amount      Decimal  @db.Decimal(19, 4)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  assetId        String   @map("asset_id") @db.Uuid
+  periodDate     DateTime @map("period_date") @db.Date
+  amount         Decimal  @db.Decimal(19, 4)
+  journalEntryId String?  @map("journal_entry_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  asset FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  asset        FixedAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   @@index([assetId])
+  @@index([journalEntryId])
   @@map("depreciation_entries")
 }
 
@@ -700,13 +720,17 @@ model PayrollRun {
   totalNet     Decimal          @default(0) @map("total_net") @db.Decimal(19, 4)
   totalTax     Decimal          @default(0) @map("total_tax") @db.Decimal(19, 4)
   totalPension Decimal          @default(0) @map("total_pension") @db.Decimal(19, 4)
+  accrualJournalEntryId String?  @unique @map("accrual_journal_entry_id") @db.Uuid
+  paymentJournalEntryId String?  @unique @map("payment_journal_entry_id") @db.Uuid
   createdBy    String           @map("created_by") @db.Uuid
   createdAt    DateTime         @default(now()) @map("created_at")
   updatedAt    DateTime         @updatedAt @map("updated_at")
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator  User      @relation("PayrollRunCreatedBy", fields: [createdBy], references: [id])
-  payslips Payslip[]
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator              User          @relation("PayrollRunCreatedBy", fields: [createdBy], references: [id])
+  accrualJournalEntry  JournalEntry? @relation("PayrollAccrual", fields: [accrualJournalEntryId], references: [id])
+  paymentJournalEntry  JournalEntry? @relation("PayrollPayment", fields: [paymentJournalEntryId], references: [id])
+  payslips             Payslip[]
 
   @@index([companyId])
   @@map("payroll_runs")
@@ -847,6 +871,7 @@ model SalesOrder {
   contact  Contact          @relation(fields: [contactId], references: [id])
   creator  User             @relation("SalesOrderCreatedBy", fields: [createdBy], references: [id])
   lines    SalesOrderLine[]
+  invoices Invoice[]
 
   @@index([companyId])
   @@index([companyId, status])
@@ -895,6 +920,7 @@ model Invoice {
   balanceDue           Decimal       @default(0) @map("balance_due") @db.Decimal(19, 4)
   status               InvoiceStatus @default(DRAFT)
   notes                String?
+  salesOrderId         String?       @map("sales_order_id") @db.Uuid
   postedJournalEntryId String?       @map("posted_journal_entry_id") @db.Uuid
   voidedJournalEntryId String?       @map("voided_journal_entry_id") @db.Uuid
   createdBy            String        @map("created_by") @db.Uuid
@@ -903,6 +929,7 @@ model Invoice {
 
   company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   creator            User                @relation("InvoiceCreatedBy", fields: [createdBy], references: [id])
+  salesOrder         SalesOrder?         @relation(fields: [salesOrderId], references: [id])
   contact            Contact             @relation(fields: [contactId], references: [id])
   postedJournalEntry JournalEntry?       @relation("InvoicePostedEntry", fields: [postedJournalEntryId], references: [id])
   voidedJournalEntry JournalEntry?       @relation("InvoiceVoidedEntry", fields: [voidedJournalEntryId], references: [id])
@@ -914,6 +941,7 @@ model Invoice {
 
   @@index([companyId])
   @@index([companyId, status])
+  @@index([salesOrderId])
   @@map("invoices")
 }
 

@@ -54,6 +54,23 @@ export const DEFAULT_CHART_OF_ACCOUNTS: readonly DefaultAccount[] = [
     name: "Fixed Assets",
     accountType: AccountType.ASSET,
     normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
+  },
+  {
+    // Debit-normal so a credit balance shows as a negative asset and reduces
+    // the balance sheet total. The report has no separate contra-asset sign.
+    code: "1510",
+    name: "Accumulated Depreciation",
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
+  },
+  {
+    code: "1600",
+    name: "Inventory",
+    accountType: AccountType.ASSET,
+    normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
   },
 
   // Liabilities
@@ -76,6 +93,27 @@ export const DEFAULT_CHART_OF_ACCOUNTS: readonly DefaultAccount[] = [
     name: "Loans",
     accountType: AccountType.LIABILITY,
     normalBalance: NormalBalance.CREDIT,
+  },
+  {
+    code: "2400",
+    name: "Wages Payable",
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isSystem: true,
+  },
+  {
+    code: "2410",
+    name: "Pension Payable",
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isSystem: true,
+  },
+  {
+    code: "2420",
+    name: "Wage Tax Payable",
+    accountType: AccountType.LIABILITY,
+    normalBalance: NormalBalance.CREDIT,
+    isSystem: true,
   },
 
   // Equity
@@ -107,6 +145,13 @@ export const DEFAULT_CHART_OF_ACCOUNTS: readonly DefaultAccount[] = [
     accountType: AccountType.REVENUE,
     normalBalance: NormalBalance.CREDIT,
   },
+  {
+    code: "4300",
+    name: "Gain on Disposal",
+    accountType: AccountType.REVENUE,
+    normalBalance: NormalBalance.CREDIT,
+    isSystem: true,
+  },
 
   // Expenses
   {
@@ -114,12 +159,14 @@ export const DEFAULT_CHART_OF_ACCOUNTS: readonly DefaultAccount[] = [
     name: "Cost of Goods Sold",
     accountType: AccountType.EXPENSE,
     normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
   },
   {
     code: "5200",
     name: "Salaries",
     accountType: AccountType.EXPENSE,
     normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
   },
   {
     code: "5300",
@@ -132,6 +179,20 @@ export const DEFAULT_CHART_OF_ACCOUNTS: readonly DefaultAccount[] = [
     name: "Utilities",
     accountType: AccountType.EXPENSE,
     normalBalance: NormalBalance.DEBIT,
+  },
+  {
+    code: "5500",
+    name: "Depreciation Expense",
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
+  },
+  {
+    code: "5600",
+    name: "Loss on Disposal",
+    accountType: AccountType.EXPENSE,
+    normalBalance: NormalBalance.DEBIT,
+    isSystem: true,
   },
   {
     code: "5900",
@@ -155,5 +216,16 @@ export const DEFAULT_ACCOUNT_ROLE_CODES = {
   ACCOUNTS_PAYABLE: "2100",
   VAT_RECEIVABLE: "1400",
   EXPENSE: "5900",
+  INVENTORY: "1600",
+  COGS: "5100",
+  SALARIES: "5200",
+  WAGES_PAYABLE: "2400",
+  PENSION_PAYABLE: "2410",
+  WAGE_TAX_PAYABLE: "2420",
+  FIXED_ASSET: "1500",
+  ACCUMULATED_DEPRECIATION: "1510",
+  DEPRECIATION_EXPENSE: "5500",
+  DISPOSAL_GAIN: "4300",
+  DISPOSAL_LOSS: "5600",
 } as const;
 

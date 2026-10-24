@@ -97,6 +97,7 @@
       "profitAndLoss": "P&L",
       "balanceSheet": "Balance sheet",
       "arAging": "AR aging",
+      "vatReturn": "VAT return",
       "settings": "Company settings",
       "users": "Users",
       "payroll": "Payroll",
@@ -537,6 +538,18 @@
         "b61to90": "61-90 days",
         "b91plus": "91+ days"
       }
+    },
+    "vatReturn": {
+      "title": "VAT return",
+      "description": "Output VAT minus input VAT for the period, from posted journal entries.",
+      "outputVat": "Output VAT (sales)",
+      "inputVat": "Input VAT (purchases)",
+      "payable": "VAT payable",
+      "refund": "VAT refundable",
+      "salesByRate": "Sales by rate",
+      "purchasesByRate": "Purchases by rate",
+      "net": "Net",
+      "tax": "VAT"
     }
   },
   "settings": {
@@ -825,7 +838,8 @@
     "status": "Status",
     "actions": "Actions",
     "total": "total",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "createInvoice": "Create invoice"
   },
   "pos": {
     "title": "Point of Sale",

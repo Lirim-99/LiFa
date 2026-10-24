@@ -113,6 +113,7 @@ const PERMISSIONS_BY_ROLE: Record<RoleCode, ReadonlySet<string>> = {
     "inventory.*",
     "pos.*",
     "quotes.*",
+    "payroll.*",
     "reports.read",
     "audit.read",
   ]),

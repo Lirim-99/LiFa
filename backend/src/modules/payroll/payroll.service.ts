@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { AccountRole, Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { LedgerPostingService } from "../accounting/ledger-posting.service";
 import type { CreateEmployeeDto, CreatePayrollRunDto, UpdateEmployeeDto } from "./dto";
 
 /**
@@ -15,6 +16,12 @@ import type { CreateEmployeeDto, CreatePayrollRunDto, UpdateEmployeeDto } from "
  */
 const PENSION_EMPLOYEE_RATE = 0.05;
 const PENSION_EMPLOYER_RATE = 0.05;
+
+/** Calendar date at UTC midnight so it still falls inside a period on its last day. */
+function utcToday(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
 
 function computeIncomeTax(taxableIncome: number): number {
   if (taxableIncome <= 80) return 0;
@@ -34,7 +41,10 @@ function computeIncomeTax(taxableIncome: number): number {
 
 @Injectable()
 export class PayrollService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledger: LedgerPostingService,
+  ) {}
 
   // ===================================================================
   // Employees
@@ -187,27 +197,109 @@ export class PayrollService {
     });
   }
 
-  async approveRun(companyId: string, id: string) {
-    const run = await this.prisma.payrollRun.findFirst({ where: { id, companyId } });
-    if (!run) throw new NotFoundException("Payroll run not found");
-    if (run.status !== "DRAFT") throw new BadRequestException("Payroll run is not in DRAFT status");
+  async approveRun(companyId: string, id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const run = await tx.payrollRun.findFirst({
+        where: { id, companyId },
+        include: { payslips: true },
+      });
+      if (!run) throw new NotFoundException("Payroll run not found");
+      if (run.status !== "DRAFT") throw new BadRequestException("Payroll run is not in DRAFT status");
 
-    return this.prisma.payrollRun.update({
-      where: { id },
-      data: { status: "APPROVED" },
-      include: { payslips: { include: { employee: true } } },
+      let gross = new Prisma.Decimal(0);
+      let net = new Prisma.Decimal(0);
+      let tax = new Prisma.Decimal(0);
+      let employeePension = new Prisma.Decimal(0);
+      let employerPension = new Prisma.Decimal(0);
+      let deductions = new Prisma.Decimal(0);
+      for (const slip of run.payslips) {
+        gross = gross.plus(slip.grossSalary);
+        net = net.plus(slip.netSalary);
+        tax = tax.plus(slip.incomeTax);
+        employeePension = employeePension.plus(slip.pensionEmployee);
+        employerPension = employerPension.plus(slip.pensionEmployer);
+        deductions = deductions.plus(slip.deductionAmount);
+      }
+
+      const salaries = gross.minus(deductions).plus(employerPension);
+      const credits = net.plus(employeePension).plus(employerPension).plus(tax);
+      const salariesDebit = salaries.plus(credits.minus(salaries));
+      const pensionCredit = employeePension.plus(employerPension);
+
+      const [salariesId, wagesId, pensionId, taxId] = await Promise.all([
+        this.accountFor(tx, companyId, AccountRole.SALARIES),
+        this.accountFor(tx, companyId, AccountRole.WAGES_PAYABLE),
+        this.accountFor(tx, companyId, AccountRole.PENSION_PAYABLE),
+        this.accountFor(tx, companyId, AccountRole.WAGE_TAX_PAYABLE),
+      ]);
+
+      const entry = await this.ledger.post(tx, {
+        companyId,
+        userId,
+        entryDate: run.periodEnd,
+        sourceDocumentType: "PAYROLL",
+        sourceDocumentId: run.id,
+        memo: `Payroll ${run.periodStart.toISOString().slice(0, 10)} – ${run.periodEnd.toISOString().slice(0, 10)}`,
+        lines: [
+          { accountId: salariesId, debit: salariesDebit, description: "Salaries and employer pension" },
+          { accountId: wagesId, credit: net, description: "Net wages payable" },
+          { accountId: pensionId, credit: pensionCredit, description: "Pension payable" },
+          { accountId: taxId, credit: tax, description: "Wage tax payable" },
+        ],
+      });
+
+      return tx.payrollRun.update({
+        where: { id },
+        data: { status: "APPROVED", accrualJournalEntryId: entry?.id },
+        include: { payslips: { include: { employee: true } } },
+      });
     });
   }
 
-  async markPaid(companyId: string, id: string) {
-    const run = await this.prisma.payrollRun.findFirst({ where: { id, companyId } });
-    if (!run) throw new NotFoundException("Payroll run not found");
-    if (run.status !== "APPROVED") throw new BadRequestException("Payroll run must be APPROVED to mark as paid");
+  async markPaid(companyId: string, id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const run = await tx.payrollRun.findFirst({ where: { id, companyId } });
+      if (!run) throw new NotFoundException("Payroll run not found");
+      if (run.status !== "APPROVED") {
+        throw new BadRequestException("Payroll run must be APPROVED to mark as paid");
+      }
 
-    return this.prisma.payrollRun.update({
-      where: { id },
-      data: { status: "PAID" },
-      include: { payslips: { include: { employee: true } } },
+      const wagesId = await this.accountFor(tx, companyId, AccountRole.WAGES_PAYABLE);
+      const bankId = await this.accountFor(tx, companyId, AccountRole.BANK);
+      const entry = await this.ledger.post(tx, {
+        companyId,
+        userId,
+        entryDate: utcToday(),
+        sourceDocumentType: "PAYROLL_PAYMENT",
+        sourceDocumentId: run.id,
+        memo: "Payroll payment",
+        lines: [
+          { accountId: wagesId, debit: run.totalNet, description: "Net wages paid" },
+          { accountId: bankId, credit: run.totalNet, description: "Bank" },
+        ],
+      });
+
+      return tx.payrollRun.update({
+        where: { id },
+        data: { status: "PAID", paymentJournalEntryId: entry?.id },
+        include: { payslips: { include: { employee: true } } },
+      });
     });
+  }
+
+  private async accountFor(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    role: AccountRole,
+  ): Promise<string> {
+    const row = await tx.companyAccountDefaults.findUnique({
+      where: { companyId_accountRole: { companyId, accountRole: role } },
+    });
+    if (!row) {
+      throw new BadRequestException(
+        `Company account default not configured for role ${role}. Set it in company settings.`,
+      );
+    }
+    return row.accountId;
   }
 }

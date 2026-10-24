@@ -1,18 +1,16 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { PosPaymentMethod, Prisma } from "@prisma/client";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { PaymentMethod, PosPaymentMethod, Prisma } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
-import { FiscalizationService } from "../fiscalization/fiscalization.service";
-import { InventoryService } from "../inventory/inventory.service";
+import { PaymentsService } from "../payments/payments.service";
+import { InvoicesService } from "../sales/invoices.service";
 import type { CloseSessionDto, CreateRegisterDto, CreateSaleDto, OpenSessionDto } from "./dto";
 
 @Injectable()
 export class PosService {
-  private readonly logger = new Logger(PosService.name);
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly inventory: InventoryService,
-    private readonly fiscalization: FiscalizationService,
+    private readonly invoices: InvoicesService,
+    private readonly payments: PaymentsService,
   ) {}
 
   // ===================================================================
@@ -140,130 +138,96 @@ export class PosService {
       }
     }
 
+    const today = new Date();
+    const contactId = await this.getOrCreatePosContact(companyId, userId);
+    const draft = await this.invoices.create(
+      companyId,
+      {
+        contactId,
+        issueDate: today,
+        dueDate: today,
+        currency: "EUR",
+        notes: dto.customerName ? `POS — ${dto.customerName}` : "POS sale",
+        lines: dto.lines.map((line) => {
+          const product = productMap.get(line.productServiceId)!;
+          return {
+            productServiceId: line.productServiceId,
+            description: product.name,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            taxRateId: product.defaultTaxRate?.id,
+          };
+        }),
+      },
+      userId,
+    );
+
+    const total = new Prisma.Decimal(draft.totalAmount);
+    if (new Prisma.Decimal(dto.amountPaid).lt(total)) {
+      await this.invoices.delete(companyId, draft.id);
+      throw new BadRequestException("Amount paid is less than the sale total");
+    }
+
+    let issued;
+    try {
+      issued = await this.invoices.issue(companyId, draft.id, userId);
+    } catch (error) {
+      await this.invoices.delete(companyId, draft.id);
+      throw error;
+    }
+
+    const paymentMethod: PaymentMethod = dto.paymentMethod === "CASH" ? "CASH" : "BANK_TRANSFER";
+    const paid = Number(issued.totalAmount);
+    try {
+      await this.payments.create(
+        companyId,
+        {
+          contactId,
+          paymentType: "RECEIVED",
+          paymentMethod,
+          paymentDate: issued.issueDate,
+          totalAmount: paid,
+          notes: "POS sale",
+          allocations: [{ invoiceId: issued.id, allocatedAmount: paid }],
+        },
+        userId,
+      );
+    } catch (error) {
+      await this.invoices.void(companyId, issued.id, userId);
+      throw error;
+    }
+
     const saleNumber = await this.getNextSaleNumber(dto.sessionId);
-
-    let subtotal = new Prisma.Decimal(0);
-    let taxTotal = new Prisma.Decimal(0);
-
-    const lineData = dto.lines.map((line, idx) => {
-      const product = productMap.get(line.productServiceId)!;
-      const lineTotal = new Prisma.Decimal(line.quantity).mul(new Prisma.Decimal(line.unitPrice));
-      let lineTax = new Prisma.Decimal(0);
-
-      if (product.defaultTaxRate) {
-        const rate = product.defaultTaxRate.rate;
-        if (product.defaultTaxRate.calculationType === "INCLUSIVE") {
-          lineTax = lineTotal.sub(lineTotal.div(new Prisma.Decimal(1).add(rate.div(100))));
-        } else {
-          lineTax = lineTotal.mul(rate).div(100);
-        }
-      }
-
-      subtotal = subtotal.add(lineTotal);
-      taxTotal = taxTotal.add(lineTax);
-
-      return {
-        lineNumber: idx + 1,
-        productServiceId: line.productServiceId,
-        name: product.name,
-        quantity: line.quantity,
-        unitPrice: line.unitPrice,
-        taxAmount: lineTax,
-        totalAmount: lineTotal.add(
-          product.defaultTaxRate?.calculationType === "EXCLUSIVE" ? lineTax : new Prisma.Decimal(0),
-        ),
-      };
-    });
-
-    const totalAmount = subtotal.add(
-      taxTotal.greaterThan(0) ? new Prisma.Decimal(0) : new Prisma.Decimal(0),
-    );
-    const finalTotal = lineData.reduce(
-      (sum, l) => sum.add(l.totalAmount),
-      new Prisma.Decimal(0),
-    );
-    const changeGiven = Math.max(0, dto.amountPaid - Number(finalTotal));
-
-    const sale = await this.prisma.posSale.create({
+    const changeGiven = Math.max(0, dto.amountPaid - paid);
+    return this.prisma.posSale.create({
       data: {
         companyId,
         sessionId: dto.sessionId,
         saleNumber,
         paymentMethod: dto.paymentMethod,
-        subtotal,
-        taxAmount: taxTotal,
-        totalAmount: finalTotal,
+        subtotal: issued.subtotalAmount,
+        taxAmount: issued.taxAmount,
+        totalAmount: issued.totalAmount,
         amountPaid: dto.amountPaid,
         changeGiven,
+        currency: "EUR",
+        invoiceId: issued.id,
         customerName: dto.customerName,
         createdBy: userId,
-        lines: { create: lineData },
+        lines: {
+          create: issued.lines.map((line) => ({
+            lineNumber: line.lineNumber,
+            productServiceId: line.productServiceId ?? dto.lines[0].productServiceId,
+            name: line.description ?? "Item",
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            taxAmount: line.taxAmount,
+            totalAmount: line.totalAmount,
+          })),
+        },
       },
       include: { lines: true },
     });
-
-    // Best-effort: create inventory movements for product lines
-    try {
-      await this.inventory.createDocumentMovements(companyId, userId, {
-        documentType: "POS_SALE",
-        documentId: sale.id,
-        reference: `POS-${saleNumber}`,
-        movementType: "GOODS_ISSUE",
-        movementDate: new Date(),
-        lines: dto.lines.map((l) => ({
-          productServiceId: l.productServiceId,
-          quantity: l.quantity,
-          unitCost: l.unitPrice,
-        })),
-      });
-    } catch (e) {
-      this.logger.warn(`Failed to create inventory movements for POS sale ${sale.id}: ${e}`);
-    }
-
-    // Best-effort: create a fiscal invoice linked to this POS sale
-    try {
-      const invoice = await this.prisma.invoice.create({
-        data: {
-          companyId,
-          contactId: await this.getOrCreatePosContact(companyId, userId),
-          issueDate: new Date(),
-          dueDate: new Date(),
-          currency: "EUR",
-          subtotalAmount: sale.subtotal,
-          taxAmount: sale.taxAmount,
-          totalAmount: sale.totalAmount,
-          paidAmount: sale.totalAmount,
-          balanceDue: 0,
-          status: "PAID",
-          invoiceNumber: `POS-${saleNumber}`,
-          notes: `POS Sale #${saleNumber}`,
-          createdBy: userId,
-          lines: {
-            create: lineData.map((l) => ({
-              lineNumber: l.lineNumber,
-              description: l.name,
-              quantity: l.quantity,
-              unitPrice: l.unitPrice,
-              taxAmount: l.taxAmount,
-              totalAmount: l.totalAmount,
-              productServiceId: l.productServiceId,
-            })),
-          },
-        },
-      });
-
-      await this.prisma.posSale.update({
-        where: { id: sale.id },
-        data: { invoiceId: invoice.id },
-      });
-
-      // Trigger fiscalization
-      await this.fiscalization.onInvoiceIssued(companyId, invoice.id);
-    } catch (e) {
-      this.logger.warn(`Failed to create fiscal invoice for POS sale ${sale.id}: ${e}`);
-    }
-
-    return sale;
   }
 
   async listSessionSales(companyId: string, sessionId: string) {

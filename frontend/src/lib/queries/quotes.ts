@@ -218,3 +218,15 @@ export function useCancelOrder() {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: quoteKeys.orders() }); },
   });
 }
+
+export function useConvertOrderToInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ id: string }>(`/sales-orders/${id}/convert-to-invoice`, { method: "POST" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: quoteKeys.orders() });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
